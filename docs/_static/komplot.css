@@ -1,0 +1,8 @@
+.sidebar-logo-container img {
+	width: 140px;
+}
+
+span.sidebar-brand-text span[style] {
+	font-size: 60% !important;
+    margin-left: 40px;
+}

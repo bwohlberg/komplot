@@ -1,0 +1,10 @@
+include MANIFEST.in
+include README.md
+include CHANGES.rst
+include LICENSE
+include pyproject.toml
+
+recursive-include komplot *.py
+recursive-include examples *.py *.ipynb
+recursive-include test *.py
+recursive-include docs Makefile *.py *.rst *.css *.svg *.ipynb

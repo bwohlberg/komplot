@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=61", "wheel", "setuptools-git-versioning>=2.0,<3", "matplotlib"]
+build-backend = "setuptools.build_meta:__legacy__"
+
+[project]
+name = "komplot"
+dynamic = ["version"]
+description = "Simplified matplotlib interface"
+keywords = ["plotting"]
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Brendt Wohlberg", email = "brendt@ieee.org" }
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: OS Independent",
+    'Intended Audience :: Developers',
+    'Topic :: Utilities'
+]
+requires-python = ">=3.9"
+dependencies = [
+    "matplotlib",
+    "numpy",
+]
+
+[tool.setuptools-git-versioning]
+enabled = true
+version_callback = "komplot:_package_version"
+
+[project.optional-dependencies]
+examples = ["imageio", "ipympl"]
+test = ["pytest"]
+docs = [
+     "sphinx",
+     "furo",
+     "sphinxcontrib-napoleon",
+     "toml",
+     "nbsphinx"
+]
+
+[tool.setuptools]
+packages = ["komplot"]
+
+[project.urls]
+homepage = "https://komplot.readthedocs.io"
+source = "https://github.com/bwohlberg/komplot"
