@@ -17,5 +17,9 @@ help:
 # Catch-all target: route all unknown targets to Sphinx using the new
 # "make mode" option.  $(O) is meant as a shortcut for $(SPHINXOPTS).
 %: Makefile
+	@mkdir -p examples; \
+	if [ ! -f "examples/komplot.ipynb" ]; then \
+	    ln -s -t examples ../../examples/komplot.ipynb ; \
+	fi
 	@export MATPLOTLIB_IPYNB_BACKEND="inline"; \
 	$(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
