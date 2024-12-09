@@ -4,6 +4,8 @@ sphinxcontrib-napoleon
 sphinx-autodoc-typehints
 toml
 nbsphinx
+ipython
+ipykernel
 matplotlib
 numpy
 imageio
