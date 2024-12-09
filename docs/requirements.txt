@@ -1,6 +1,7 @@
 sphinx
 furo
 sphinxcontrib-napoleon
+sphinx-autodoc-typehints
 toml
 nbsphinx
 matplotlib
