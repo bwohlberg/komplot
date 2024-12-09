@@ -1,7 +1,7 @@
 Overview
 --------
 
-KomPlot provides a convenience layer around selected `matplotlib <https://matplotlib.org/>`__ plotting functions, making it possible to construct a useful plot in a single function call, which is particularly useful for use within an interactive `ipython <https://ipython.org/>`__ or `JupyterLab <https://jupyter.org/>`__ session. KomPlot also provides a number of interactive controls, including zooming by mouse wheel scroll, colormap shifts when viewing images, and shifting between displayed slices of a volume.
+`KomPlot <https://github.com/bwohlberg/komplot>`__ provides a convenience layer around selected `matplotlib <https://matplotlib.org/>`__ plotting functions, making it possible to construct a useful plot in a single function call, which is particularly useful for use within an interactive `ipython <https://ipython.org/>`__ or `JupyterLab <https://jupyter.org/>`__ session. KomPlot also provides a number of interactive controls, including zooming by mouse wheel scroll, colormap shifts when viewing images, and shifting between displayed slices of a volume.
 
 
 Plot Types
