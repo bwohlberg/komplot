@@ -3,4 +3,7 @@ furo
 sphinxcontrib-napoleon
 toml
 nbsphinx
+matplotlib
+numpy
+imageio
 
