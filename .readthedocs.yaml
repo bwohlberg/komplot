@@ -11,8 +11,9 @@ build:
     python: "3.13"
   jobs:
     pre_build:
-      - echo Working dir $(pwd)
-      - ls
+      - ln -s -t docs ../examples
+      - ls -l docs/examples
+
 
 # Build documentation in the "docs/" directory with Sphinx
 sphinx:
