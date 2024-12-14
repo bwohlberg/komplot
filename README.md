@@ -12,8 +12,7 @@ KomPlot provides a convenience layer around selected [matplotlib](https://matplo
 
 ## Installation
 
-The online documentation includes
-[installation instructions](https://komplot.rtfd.io/en/latest/install.html).
+The [online documentation](https://komplot.rtfd.io) includes [installation instructions](https://komplot.rtfd.io/en/latest/install.html).
 
 
 ## Usage Examples
@@ -23,5 +22,4 @@ Usage examples are available in directory `examples`.
 
 ## License
 
-KomPlot is distributed as open-source software under a BSD 3-Clause
-License (see the `LICENSE` file for details).
+KomPlot is distributed as open-source software under a BSD 3-Clause License (see the `LICENSE` file for details).
