@@ -12,6 +12,7 @@ plotting functions.
 """
 
 import sys
+from importlib.metadata import PackageNotFoundError, version
 
 from matplotlib import cm, rcParams
 from matplotlib.pyplot import figure, gca, gcf, savefig, subplot, subplots
@@ -39,14 +40,22 @@ from ._ipython import (
 from ._version import local_version_label
 
 
-_public_version = "0.0.1.dev1"
+_public_version = "0.0.1.dev2"
 
 
 def _package_version():
     return _public_version + local_version_label(_public_version)
 
 
-__version__ = _package_version()
+def _installed_version():
+    try:
+        ver = version("komplot")
+    except PackageNotFoundError:
+        ver = _package_version()
+    return ver
+
+
+__version__ = _installed_version()
 
 
 __all__ = [
