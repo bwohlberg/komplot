@@ -31,7 +31,7 @@ def current_git_hash() -> Optional[str]:
             .strip()
             .decode()
         )
-    except subprocess.CalledProcessError:
+    except (subprocess.CalledProcessError, FileNotFoundError):
         git_hash = None
     if git_hash == "":
         git_hash = None
