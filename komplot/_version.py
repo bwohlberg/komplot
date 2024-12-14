@@ -20,15 +20,18 @@ def current_git_hash() -> Optional[str]:
     Returns:
        Short git hash of current commit, or ``None`` if no git repo found.
     """
-    # See https://stackoverflow.com/questions/14989858
-    git_hash: Optional[str] = (
-        subprocess.check_output(
-            ["git", "rev-parse", "--short", "HEAD"],
-            cwd=os.path.dirname(os.path.abspath(__file__)),
+    try:
+        # See https://stackoverflow.com/questions/14989858
+        git_hash: Optional[str] = (
+            subprocess.check_output(
+                ["git", "rev-parse", "--short", "HEAD"],
+                cwd=os.path.dirname(os.path.abspath(__file__)),
+            )
+            .strip()
+            .decode()
         )
-        .strip()
-        .decode()
-    )
+    except subprocess.CalledProcessError:
+        git_hash = None
     if git_hash == "":
         git_hash = None
     return git_hash
@@ -49,7 +52,7 @@ def local_version_label(public_version: str) -> str:
     Returns:
         Local version label component of the version identifier.
     """
-    # don't extend purely numeric version numbers, possibly ending with post<n>
+    # don't extend purely numeric version numbers, possibly ending with rc<n> or post<n>
     if re.match(r"^[0-9\.]+((rc|post)[0-9]+)?$", public_version):
         git_hash = None
     else:
