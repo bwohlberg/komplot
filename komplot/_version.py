@@ -50,7 +50,7 @@ def local_version_label(public_version: str) -> str:
         Local version label component of the version identifier.
     """
     # don't extend purely numeric version numbers, possibly ending with post<n>
-    if re.match(r"^[0-9\.]+(post[0-9]+)?$", public_version):
+    if re.match(r"^[0-9\.]+((rc|post)[0-9]+)?$", public_version):
         git_hash = None
     else:
         git_hash = current_git_hash()
