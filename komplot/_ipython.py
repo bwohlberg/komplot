@@ -39,7 +39,7 @@ def _in_notebook() -> bool:
     try:
         # See https://stackoverflow.com/questions/15411967
         shell = get_ipython().__class__.__name__  # type: ignore
-        return bool(shell == "ZMQInteractiveShell")
+        return bool(shell in ["ZMQInteractiveShell", "Shell""])  # Shell on google colab
     except NameError:
         return False
 
