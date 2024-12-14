@@ -6,6 +6,7 @@ KomPlot Documentation!
    :caption: Contents:
 
    overview
+   install
    API Reference <_autosummary/komplot.rst>
    Usage Examples <examples/komplot>
 
