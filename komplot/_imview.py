@@ -329,12 +329,14 @@ def imview(
     else:  # volume slice display
         if vol_slice_axis < 0:
             vol_slice_axis = data.ndim + vol_slice_axis
-        data_shape = data.shape[0:vol_slice_axis] + data.shape[vol_slice_axis + 1 :]
+        data_shape = data.shape[0:vol_slice_axis] + data.shape[vol_slice_axis + 1 :]  # type: ignore
         if data.ndim not in (3, 4) or (data.ndim == 4 and data_shape[-1] not in (3, 4)):
             raise ValueError(
                 f"Argument data shape {data.shape} not appropriate for volume slice "
                 f"display with vol_slice_axis={vol_slice_axis}."
             )
+
+        assert isinstance(vol_slice_axis, int)
         data = np.transpose(
             data,
             (vol_slice_axis,)
