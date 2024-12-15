@@ -26,7 +26,7 @@ def current_git_hash() -> Optional[str]:
             subprocess.check_output(
                 ["git", "rev-parse", "--short", "HEAD"],
                 cwd=os.path.dirname(os.path.abspath(__file__)),
-                stderr=subprocess.STDOUT
+                stderr=subprocess.STDOUT,
             )
             .strip()
             .decode()
