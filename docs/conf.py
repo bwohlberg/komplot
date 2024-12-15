@@ -14,7 +14,7 @@ import toml
 confpath = os.path.dirname(__file__)
 rootpath = os.path.realpath(os.path.join(confpath, ".."))
 sys.path.append(rootpath)  # so that this script can find komplot module
-os.environ['PYTHONPATH'] = rootpath  # so that nbsphinx can find komplot module
+os.environ["PYTHONPATH"] = rootpath  # so that nbsphinx can find komplot module
 
 from komplot import _package_version
 
