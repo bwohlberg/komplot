@@ -45,3 +45,6 @@ packages = ["komplot"]
 [project.urls]
 homepage = "https://komplot.readthedocs.io"
 source = "https://github.com/bwohlberg/komplot"
+
+[tool.isort]
+profile = "black"
