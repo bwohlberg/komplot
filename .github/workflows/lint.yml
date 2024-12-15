@@ -1,0 +1,28 @@
+# Run isort and black on pushes to main and any pull requests
+
+name: lint
+
+on:
+    push:
+        branches:
+          - main
+    pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Black code formatter
+        uses: psf/black@stable
+        with:
+          version: ">=24.3.0"
+      - name: Isort import sorter
+        uses: isort/isort-action@v1
+      - name: Pylint code analysis
+        run: |
+          pip install pylint
+          pylint --disable=all --enable=missing-docstring,broad-exception-raised komplot
