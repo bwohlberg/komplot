@@ -42,6 +42,7 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.viewcode",
     "sphinx.ext.inheritance_diagram",
+    "matplotlib.sphinxext.plot_directive",
     "nbsphinx",
 ]
 
@@ -55,6 +56,8 @@ intersphinx_mapping = {
 }
 
 pygments_style = "sphinx"
+
+plot_html_show_formats = False
 
 autodoc_default_options = {
     "member-order": "bysource",
