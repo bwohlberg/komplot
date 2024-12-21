@@ -9,4 +9,3 @@ ipykernel
 matplotlib
 numpy
 imageio
-
