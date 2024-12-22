@@ -65,8 +65,8 @@ Surface plot representations of a 3D surface are supported by the :func:`~komplo
 
 |
 
-Viewer for 2D images or slices of 3D volumes
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Viewer for 2D images
+^^^^^^^^^^^^^^^^^^^^
 
 .. plot::
     :show-source-link: False
@@ -82,9 +82,26 @@ Viewer for 2D images or slices of 3D volumes
     fig.show()
 
 
-Function :func:`~komplot.imview` provides a viewer for 2D images or slices of 3D volumes. Usage examples for `2D images <https://github.com/bwohlberg/komplot/blob/main/examples/imview_img.py>`__ and `3D volumes <https://github.com/bwohlberg/komplot/blob/main/examples/imview_vol.py>`__ are available.
+Function :func:`~komplot.imview` provides a viewer for 2D images. A `usage example <https://github.com/bwohlberg/komplot/blob/main/examples/imview_img.py>`__ is available.
 
 |
+
+Viewer for slices of 3D volumes
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. plot::
+    :show-source-link: False
+
+    from imageio.v3 import imread
+    import komplot as kplt
+    vol = imread("imageio:stent.npz")
+    iv = kplt.imview(vol.transpose((1, 2, 0)), vol_slice_axis=0, show_cbar=True)
+    iv.set_volume_slice(110)
+
+
+Function :func:`~komplot.imview` provides a viewer for slices of 3D volumes. A `usage example <https://github.com/bwohlberg/komplot/blob/main/examples/imview_vol.py>`__ is available.
+
+
 
 Interactive features
 ====================
