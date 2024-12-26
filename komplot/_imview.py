@@ -243,7 +243,7 @@ def _create_slider(
         ax=sax,
         label="Slice",
         valmin=0,
-        valmax=volume.shape[0],
+        valmax=volume.shape[0] - 1,
         valstep=range(volume.shape[0]),
         valinit=0,
         orientation=orient,
