@@ -14,7 +14,7 @@ on:
 
 jobs:
   build-and-upload:
-    name: Upload packages to PyPI
+    name: Test example scripts
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,7 +27,7 @@ jobs:
       - name: Install dependencies and build packages
         run: |
           python -m pip install --upgrade pip
-          pip install .
+          pip install .[examples]
       - name: Run example test
         run: |
           ${GITHUB_WORKSPACE}/examples/scriptcheck.sh -e
