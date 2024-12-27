@@ -119,7 +119,7 @@ It also provides interactive adjustment/navigation support in addition to the st
 |			 | size by a scaling factor.      |                            |
 +------------------------+--------------------------------+----------------------------+
 | **Mouse wheel scroll** | Zoom in or out at current      | All plot types except      |
-| in main figure         | cursor location.               | :func:`~komplot.surf`      |
+| in main figure         | cursor location.               | :func:`~komplot.surface`   |
 +------------------------+--------------------------------+----------------------------+
 | **Mouse wheel scroll** | Increase or decrease colormap  | All plots with a           |
 | in bottom half of      | :code:`vmin`.                  | visible colorbar           |
@@ -138,8 +138,7 @@ It also provides interactive adjustment/navigation support in addition to the st
 +------------------------+--------------------------------+----------------------------+
 
 
-Note that none of the keyboard shortcuts (including detection of the shift key while the mouse wheel is scrolled) are functional within Jupyter notebooks with the
-`ipympl <https://matplotlib.org/ipympl/>`__ matplotlib backend.
+Note that none of the keyboard shortcuts (including detection of the shift key while the mouse wheel is scrolled) are functional within Jupyter notebooks with the `ipympl <https://matplotlib.org/ipympl/>`__ matplotlib backend.
 
 
 Usage Examples
