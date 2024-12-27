@@ -11,6 +11,7 @@ Alternative high-level interface to selected :mod:`matplotlib`
 plotting functions.
 """
 
+import functools
 import sys
 from importlib.metadata import PackageNotFoundError, version
 
@@ -83,6 +84,32 @@ __all__ = [
 ]
 
 
-# Imported items in __all__ appear to originate in top-level functional module
+# Imported items in __all__ appear to originate in top-level module
 for name in __all__:
     getattr(sys.modules[__name__], name).__module__ = __name__
+
+
+# Construct no-return-value versions of main plotting functions
+def _discard_return(func, name):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        func(*args, **kwargs)
+
+    wrapper.__name__ = name
+    wrapper.__qualname__ = name
+    docs = wrapper.__doc__.split("\n")
+    docs.insert(
+        1,
+        (
+            f"\n    This version of :func:`{func.__name__}` discards the return value, "
+            "for use in Jupyter notebooks.\n"
+        ),
+    )
+    wrapper.__doc__ = "\n".join(docs)
+    return wrapper
+
+
+for func in (plot, contour, surface, imview):
+    name = func.__name__ + "_"
+    setattr(sys.modules[__name__], name, _discard_return(func, name))
+del func
