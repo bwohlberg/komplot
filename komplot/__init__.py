@@ -22,7 +22,7 @@ from matplotlib.pyplot import figure, gca, gcf, savefig, subplot, subplots
 from ._contour import contour, ContourPlot
 from ._imview import imview, ImageView, ImageViewEventManager
 from ._plot import plot, LinePlot
-from ._surf import surf, SurfacePlot
+from ._surface import surface, SurfacePlot
 from ._event import (
     figure_event_manager,
     FigureEventManager,
@@ -62,7 +62,7 @@ __all__ = [
     "contour",
     "imview",
     "plot",
-    "surf",
+    "surface",
     "close",
     "ContourPlot",
     "ImageView",

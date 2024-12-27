@@ -13,7 +13,7 @@ z = np.sin(y) * np.cos(2 * x * y)
 """
 Plot a surface plot of the surface, including contour lines at the bottom of the `z` axis.
 """
-kplt.surf(
+kplt.surface(
     z,
     x,
     y,
@@ -41,7 +41,7 @@ We can also plot within subplots of the same figure.
 """
 fig, ax = kplt.subplots(nrows=1, ncols=2, figsize=(12.1, 5))
 fig.suptitle("Figure Title", fontsize=14)
-kplt.surf(
+kplt.surface(
     z,
     x,
     y,

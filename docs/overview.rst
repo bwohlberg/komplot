@@ -57,11 +57,11 @@ Surface plot representation of a 3D surface
     :context: close-figs
     :show-source-link: False
 
-    kplt.surf(z, x, y, elev=25, azim=-25, xlabel="x", ylabel="y", zlabel="z",
-	      title="Surface Plot Example", levels=5, figsize=(7, 6))
+    kplt.surface(z, x, y, elev=25, azim=-25, xlabel="x", ylabel="y", zlabel="z",
+		 title="Surface Plot Example", levels=5, figsize=(7, 6))
 
 
-Surface plot representations of a 3D surface are supported by the :func:`~komplot.surf` function. A `usage example <https://github.com/bwohlberg/komplot/blob/main/examples/surfcont.py>`__ is available.
+Surface plot representations of a 3D surface are supported by the :func:`~komplot.surface` function. A `usage example <https://github.com/bwohlberg/komplot/blob/main/examples/surfcont.py>`__ is available.
 
 |
 

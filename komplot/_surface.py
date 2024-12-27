@@ -38,7 +38,7 @@ class SurfacePlot(GenericPlot):
     qcntset: Optional[mpl.contour.QuadContourSet]
 
 
-def surf(
+def surface(
     z: np.ndarray,
     x: Optional[np.ndarray] = None,
     y: Optional[np.ndarray] = None,
