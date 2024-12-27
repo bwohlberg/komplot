@@ -203,11 +203,21 @@ def _patch_coord_statusbar(fig: Figure):
         )
 
 
+def _get_axes_width(ax: Axes):
+    """Get axes width."""
+    return ax.get_tightbbox().bounds[2]
+
+
+def _get_axes_height(ax: Axes):
+    """Get axes height."""
+    return ax.get_tightbbox().bounds[3]
+
+
 def _create_colorbar(
     ax: Axes,
     axim: mpl.image.AxesImage,
     divider: AxesDivider,
-    image: np.ndarray,
+    orient: str,
     visible: bool = True,
 ) -> Tuple[Axes, str]:
     """Create a colorbar attached to the displayed image.
@@ -215,7 +225,6 @@ def _create_colorbar(
     If `visible` is ``False``, ensure the colorbar is invisible, for use
     in maintaining consistent size of image and colorbar region.
     """
-    orient = "vertical" if image.shape[0] >= image.shape[1] else "horizontal"
     pos = "right" if orient == "vertical" else "bottom"
     cax = divider.append_axes(pos, size="5%", pad=0.2)
     if visible:
@@ -230,14 +239,14 @@ def _create_colorbar(
             cax.spines[axis].set_linewidth(0)
         cax.set_xticks([])
         cax.set_yticks([])
-    return cax, orient
+    return cax
 
 
 def _create_slider(
-    divider: AxesDivider, volume: np.ndarray, pad: float = 0.1
+    divider: AxesDivider, volume: np.ndarray, orient: str, pad: float = 0.1
 ) -> Tuple[Axes, Slider]:
     """Create a volume slice slider attached to the displayed slice."""
-    orient, pos = "horizontal", "bottom"
+    pos = "left" if orient == "vertical" else "bottom"
     sax = divider.append_axes(pos, size="5%", pad=pad)
     slider = Slider(
         ax=sax,
@@ -381,16 +390,22 @@ def imview(
         divider = None
 
     if show_cbar or show_cbar is None:
-        cax, orient = _create_colorbar(
-            ax, axim, divider, image, visible=show_cbar is not None
+        cbar_orient = "vertical" if image.shape[0] >= image.shape[1] else "horizontal"
+        cax = _create_colorbar(
+            ax, axim, divider, orient=cbar_orient, visible=show_cbar is not None
         )
     else:
-        cax, orient = None, None
+        cbar_orient, cax = None, None
 
     if vol_slice_axis is not None:
         assert volume is not None
-        pad = 0.35 if show_cbar and orient == "horizontal" else 0.1
-        sax, vol_slider = _create_slider(divider, volume, pad=pad)
+        pad = 0.35 if show_cbar and cbar_orient == "horizontal" else 0.1
+        if image.shape[0] >= 2 * image.shape[1]:
+            slider_orient = "vertical"
+            pad = 0.25
+        else:
+            slider_orient = "horizontal"
+        sax, vol_slider = _create_slider(divider, volume, orient=slider_orient, pad=pad)
     else:
         sax, vol_slider = None, None
 
