@@ -91,21 +91,26 @@ for name in __all__:
 
 # Construct no-return-value versions of main plotting functions
 def _discard_return(func, name):
-    @functools.wraps(func)
     def wrapper(*args, **kwargs):
         func(*args, **kwargs)
 
     wrapper.__name__ = name
     wrapper.__qualname__ = name
-    docs = wrapper.__doc__.split("\n")
-    docs.insert(
-        1,
-        (
-            f"\n    This version of :func:`{func.__name__}` discards the return value, "
-            "for use in Jupyter notebooks.\n"
-        ),
+    attr = "__annotate__" if hasattr(func, "__annotate__") else "__annotations__"
+    setattr(wrapper, attr, getattr(func, attr).copy())
+    del getattr(wrapper, attr)["return"]
+    if hasattr(func, "__type_params__"):
+        wrapper.__type_params__ = func.__type_params__
+    docs = func.__doc__.split("\n")
+    wrapper.__doc__ = (
+        docs[0]
+        + "\n"
+        + f"""
+    This version of :func:`{func.__name__}` discards the return value, for use in
+    Jupyter notebooks where the return value is not needed, and which would clutter
+    the following output cell.
+    """
     )
-    wrapper.__doc__ = "\n".join(docs)
     return wrapper
 
 
