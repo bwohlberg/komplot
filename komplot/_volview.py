@@ -197,11 +197,10 @@ def volview(
     fignum: Optional[int] = None,
     ax: Optional[Axes] = None,
 ) -> VolumeView:
-    """Display an image or a slice of a volume.
+    """Display a slice of a volume.
 
-    Display an image or a slice of a volume. Pixel values are displayed
-    when the pointer is over valid image data. Supports the following
-    features:
+    Display a slice of a volume. Pixel values are displayed when the
+    pointer is over valid image data. Supports the following features:
 
     - If an axes is not specified (via parameter :code:`ax`), a new
       figure and axes are created, and
@@ -213,13 +212,11 @@ def volview(
       `interactive features <https://matplotlib.org/stable/users/explain/figure/interactive.html#interactive-navigation>`__.
 
     Args:
-        volume: Image or volume to display. An image should be two or three
-            dimensional, with the third dimension, if present,
-            representing color and opacity channels, and having size
-            3 or 4. A volume should be three or four dimensional, with
-            the final dimension after exclusion of the axis identified by
-            :code:`vol_slice_axis` having size 3 or 4.
-        slice_axis: The axis of :code:`data`, if any, from which to
+        volume: Volume to display. It should be three or four dimensional.
+            If four dimensional, the final dimension after exclusion of
+            the axis identified by :code:`slice_axis` represents color
+            and opacity channels, should have size 3 or 4.
+        slice_axis: The axis of :code:`volume`, if any, from which to
             select volume slices for display.
         interpolation: Specify type of interpolation used to display
             image (see :code:`interpolation` parameter of
@@ -244,7 +241,7 @@ def volview(
         ax: Plot in specified axes instead of creating one.
 
     Returns:
-        Image view state object.
+        Volume view state object.
 
     Raises:
         ValueError: If the input array is not of the required shape.
@@ -252,9 +249,9 @@ def volview(
 
     if slice_axis < 0:
         slice_axis = volume.ndim + slice_axis
-    volume_shape = volume.shape[0:slice_axis] + volume.shape[slice_axis + 1 :]  # type: ignore
+    slice_shape = volume.shape[0:slice_axis] + volume.shape[slice_axis + 1 :]  # type: ignore
     if volume.ndim not in (3, 4) or (
-        volume.ndim == 4 and volume_shape[-1] not in (3, 4)
+        volume.ndim == 4 and slice_shape[-1] not in (3, 4)
     ):
         raise ValueError(
             f"Argument volume shape {volume.shape} not appropriate for volume slice "

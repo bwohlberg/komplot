@@ -163,7 +163,6 @@ def _image_view(
     *,
     interpolation: str = "nearest",
     origin: str = "upper",
-    # norm: Normalize = None,
     imshow_kwargs: Optional[dict] = None,
     show_cbar: Optional[bool] = False,
     cmap: Optional[Union[Colormap, str]] = None,
@@ -207,7 +206,7 @@ def _image_view(
         ax: Plot in specified axes instead of creating one.
 
     Returns:
-        Image view state object.
+        A tuple of (fig, ax, show, axim).
 
     Raises:
         ValueError: If the input array is not of the required shape.
@@ -266,11 +265,10 @@ def imview(
     fignum: Optional[int] = None,
     ax: Optional[Axes] = None,
 ) -> ImageView:
-    """Display an image or a slice of a volume.
+    """Display an image.
 
-    Display an image or a slice of a volume. Pixel values are displayed
-    when the pointer is over valid image image. Supports the following
-    features:
+    Display an image. Pixel values are displayed when the pointer is over
+    valid image data. Supports the following features:
 
     - If an axes is not specified (via parameter :code:`ax`), a new
       figure and axes are created, and
