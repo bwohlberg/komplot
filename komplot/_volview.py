@@ -269,7 +269,6 @@ def volview(
         + tuple(range(slice_axis + 1, volume.ndim)),  # move slice axis to position 0
     )
     image = volume[0]  # current slice
-    volume = volume
 
     kwargs = (
         {"vmin": volume.min(), "vmax": volume.max()} if norm is None else {"norm": norm}
@@ -288,11 +287,7 @@ def volview(
         ax=ax,
     )
 
-    if slice_axis is not None or show_cbar or show_cbar is None:
-        divider = make_axes_locatable(ax)
-    else:
-        divider = None
-
+    divider = make_axes_locatable(ax)
     if show_cbar or show_cbar is None:
         cbar_orient = "vertical" if image.shape[0] >= image.shape[1] else "horizontal"
         cax = _create_colorbar(
@@ -301,17 +296,14 @@ def volview(
     else:
         cbar_orient, cax = None, None
 
-    if slice_axis is not None:
-        assert volume is not None
-        pad = 0.35 if show_cbar and cbar_orient == "horizontal" else 0.1
-        if image.shape[0] >= 2 * image.shape[1]:
-            slider_orient = "vertical"
-            pad = 0.25
-        else:
-            slider_orient = "horizontal"
-        sax, vol_slider = _create_slider(divider, volume, orient=slider_orient, pad=pad)
+    assert volume is not None
+    pad = 0.35 if show_cbar and cbar_orient == "horizontal" else 0.1
+    if image.shape[0] >= 2 * image.shape[1]:
+        slider_orient = "vertical"
+        pad = 0.25
     else:
-        sax, vol_slider = None, None
+        slider_orient = "horizontal"
+    sax, vol_slider = _create_slider(divider, volume, orient=slider_orient, pad=pad)
 
     if show:
         fig.show()
