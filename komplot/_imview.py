@@ -170,46 +170,10 @@ def _image_view(
     figsize: Optional[Tuple[int, int]] = None,
     fignum: Optional[int] = None,
     ax: Optional[Axes] = None,
-) -> Tuple:
-    """Display an image or a slice of a volume.
+) -> Tuple[Figure, Axes, bool, mpl.image.AxesImage]:
+    """Set up a basic image display.
 
-    Display an image or a slice of a volume. Pixel values are displayed
-    when the pointer is over valid image data.
-
-    Args:
-        data: Image or volume to display. An image should be two or three
-            dimensional, with the third dimension, if present,
-            representing color and opacity channels, and having size
-            3 or 4. A volume should be three or four dimensional, with
-            the final dimension after exclusion of the axis identified by
-            :code:`vol_slice_axis` having size 3 or 4.
-        interpolation: Specify type of interpolation used to display
-            image (see :code:`interpolation` parameter of
-            :meth:`~matplotlib.axes.Axes.imshow`).
-        origin: Specify the origin of the image support. Valid values are
-            "upper" and "lower" (see :code:`origin` parameter of
-            :meth:`~matplotlib.axes.Axes.imshow`). The location of the
-            plot x-ticks indicates which of these options was selected.
-        norm: Specify the :class:`~matplotlib.colors.Normalize` instance
-            used to scale pixel values for input to the color map.
-        show_cbar: Flag indicating whether to display a colorbar. If set
-            to ``None``, create an invisible colorbar so that the image
-            occupies the same amount of space in a subplot as one with a
-            visible colorbar.
-        cmap: Color map for image or volume slices. If none specifed,
-            defaults to :code:`matplotlib.cm.Greys_r` for monochrome
-            image.
-        title: Figure title.
-        figsize: Specify dimensions of figure to be creaed as a tuple
-            (`width`, `height`) in inches.
-        fignum: Figure number of figure to be created.
-        ax: Plot in specified axes instead of creating one.
-
-    Returns:
-        A tuple of (fig, ax, show, axim).
-
-    Raises:
-        ValueError: If the input array is not of the required shape.
+    Set up an image display with basic features.
     """
 
     if image.ndim not in (2, 3) or (image.ndim == 3 and image.shape[-1] not in (3, 4)):
