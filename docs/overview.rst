@@ -95,7 +95,7 @@ Viewer for slices of 3D volumes
     from imageio.v3 import imread
     import komplot as kplt
     vol = imread("imageio:stent.npz")
-    iv = kplt.volview(vol.transpose((1, 2, 0)), slice_axis=0, show_cbar=True)
+    iv = kplt.volview(vol.transpose((1, 2, 0)), slice_axis=0, cmap="Blues", show_cbar=True)
     iv.set_volume_slice(110)
 
 
@@ -129,11 +129,11 @@ It also provides interactive adjustment/navigation support in addition to the st
 | in top half of         | :code:`vmax`.                  | visible colorbar           |
 | colorbar               |                                |                            |
 +------------------------+--------------------------------+----------------------------+
-| **Mouse wheel scroll** | Increase or decrease slice     | An :func:`~komplot.imview` |
+| **Mouse wheel scroll** | Increase or decrease slice     | A :func:`~komplot.volview` |
 | in main figure with    | index.                         | plot of a 3D volume.       |
 | **Shift** depressed    |                                |                            |
 +------------------------+--------------------------------+----------------------------+
-| Slice **slider bar**   | Increase or decrease slice     | An :func:`~komplot.imview` |
+| Slice **slider bar**   | Increase or decrease slice     | A :func:`~komplot.volview` |
 |			 | index.                         | plot of a 3D volume.       |
 +------------------------+--------------------------------+----------------------------+
 
