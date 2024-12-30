@@ -21,6 +21,7 @@ from matplotlib.pyplot import figure, gca, gcf, savefig, subplot, subplots
 
 from ._contour import contour, ContourPlot
 from ._imview import imview, ImageView, ImageViewEventManager
+from ._volview import volview, VolumeView, VolumeViewEventManager
 from ._plot import plot, LinePlot
 from ._surface import surface, SurfacePlot
 from ._event import (
