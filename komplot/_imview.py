@@ -171,7 +171,7 @@ def _image_view(
     figsize: Optional[Tuple[int, int]] = None,
     fignum: Optional[int] = None,
     ax: Optional[Axes] = None,
-) -> ImageView:
+) -> Tuple:
     """Display an image or a slice of a volume.
 
     Display an image or a slice of a volume. Pixel values are displayed

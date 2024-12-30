@@ -296,7 +296,6 @@ def volview(
     else:
         cbar_orient, cax = None, None
 
-    assert volume is not None
     pad = 0.35 if show_cbar and cbar_orient == "horizontal" else 0.1
     if image.shape[0] >= 2 * image.shape[1]:
         slider_orient = "vertical"
