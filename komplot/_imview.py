@@ -135,7 +135,7 @@ def _create_colorbar(
     divider: AxesDivider,
     orient: str,
     visible: bool = True,
-) -> Tuple[Axes, str]:
+) -> Axes:
     """Create a colorbar attached to the displayed image.
 
     If `visible` is ``False``, ensure the colorbar is invisible, for use
@@ -164,13 +164,16 @@ def _image_view(
     interpolation: str = "nearest",
     origin: str = "upper",
     imshow_kwargs: Optional[dict] = None,
+    make_divider: bool = False,
     show_cbar: Optional[bool] = False,
     cmap: Optional[Union[Colormap, str]] = None,
     title: Optional[str] = None,
     figsize: Optional[Tuple[int, int]] = None,
     fignum: Optional[int] = None,
     ax: Optional[Axes] = None,
-) -> Tuple[Figure, Axes, bool, mpl.image.AxesImage]:
+) -> Tuple[
+    Figure, Axes, bool, mpl.image.AxesImage, Optional[AxesDivider], Optional[Axes], str
+]:
     """Set up a basic image display.
 
     Set up an image display with basic features.
@@ -213,7 +216,18 @@ def _image_view(
     if HAVE_MPLCRS:
         mplcrs.cursor(axim)
 
-    return fig, ax, show, axim
+    divider = make_axes_locatable(ax) if make_divider else None
+    if show_cbar or show_cbar is None:
+        if divider is None:
+            divider = make_axes_locatable(ax)
+        cbar_orient = "vertical" if image.shape[0] >= image.shape[1] else "horizontal"
+        cax = _create_colorbar(
+            ax, axim, divider, orient=cbar_orient, visible=show_cbar is not None
+        )
+    else:
+        cbar_orient, cax = None, None
+
+    return fig, ax, show, axim, divider, cax, cbar_orient
 
 
 def imview(
@@ -282,11 +296,12 @@ def imview(
     kwargs = (
         {"vmin": image.min(), "vmax": image.max()} if norm is None else {"norm": norm}
     )
-    fig, ax, show, axim = _image_view(
+    fig, ax, show, axim, divider, cax, cbar_orient = _image_view(
         image,
         interpolation=interpolation,
         origin=origin,
         imshow_kwargs=kwargs,
+        make_divider=False,
         show_cbar=show_cbar,
         cmap=cmap,
         title=title,
@@ -294,15 +309,6 @@ def imview(
         fignum=fignum,
         ax=ax,
     )
-
-    if show_cbar or show_cbar is None:
-        divider = make_axes_locatable(ax)
-        cbar_orient = "vertical" if image.shape[0] >= image.shape[1] else "horizontal"
-        cax = _create_colorbar(
-            ax, axim, divider, orient=cbar_orient, visible=show_cbar is not None
-        )
-    else:
-        divider, cbar_orient, cax = None, None, None
 
     if show:
         fig.show()

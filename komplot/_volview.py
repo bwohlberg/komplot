@@ -16,11 +16,10 @@ from matplotlib.axes import Axes
 from matplotlib.backend_bases import Event
 from matplotlib.colors import Colormap, Normalize
 from matplotlib.widgets import Slider
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 from mpl_toolkits.axes_grid1.axes_divider import AxesDivider
 
 from ._event import FigureEventManager, figure_event_manager
-from ._imview import ImageView, ImageViewEventManager, _create_colorbar, _image_view
+from ._imview import ImageView, ImageViewEventManager, _image_view
 
 try:
     pass
@@ -270,12 +269,12 @@ def volview(
     kwargs = (
         {"vmin": volume.min(), "vmax": volume.max()} if norm is None else {"norm": norm}
     )
-
-    fig, ax, show, axim = _image_view(
+    fig, ax, show, axim, divider, cax, cbar_orient = _image_view(
         image,
         interpolation=interpolation,
         origin=origin,
         imshow_kwargs=kwargs,
+        make_divider=True,
         show_cbar=show_cbar,
         cmap=cmap,
         title=title,
@@ -283,15 +282,6 @@ def volview(
         fignum=fignum,
         ax=ax,
     )
-
-    divider = make_axes_locatable(ax)
-    if show_cbar or show_cbar is None:
-        cbar_orient = "vertical" if image.shape[0] >= image.shape[1] else "horizontal"
-        cax = _create_colorbar(
-            ax, axim, divider, orient=cbar_orient, visible=show_cbar is not None
-        )
-    else:
-        cbar_orient, cax = None, None
 
     pad = 0.35 if show_cbar and cbar_orient == "horizontal" else 0.1
     if image.shape[0] >= 2 * image.shape[1]:
