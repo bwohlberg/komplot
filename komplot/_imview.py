@@ -172,7 +172,13 @@ def _image_view(
     fignum: Optional[int] = None,
     ax: Optional[Axes] = None,
 ) -> Tuple[
-    Figure, Axes, bool, mpl.image.AxesImage, Optional[AxesDivider], Optional[Axes], str
+    Figure,
+    Axes,
+    bool,
+    mpl.image.AxesImage,
+    Optional[AxesDivider],
+    Optional[Axes],
+    Optional[str],
 ]:
     """Set up a basic image display.
 
