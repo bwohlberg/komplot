@@ -145,7 +145,13 @@ def config_notebook_plotting(
         # are duplicated if the return value from the original function is
         # not assigned to a variable)
         if discard_return:
-            for func in (module.plot, module.surf, module.contour, module.imview):
+            for func in (
+                module.plot,
+                module.surface,
+                module.contour,
+                module.imview,
+                module.volview,
+            ):
                 setattr(module, func.__name__, discard_func_return(func))
 
         # Disable figure show method (results in a warning if used within
