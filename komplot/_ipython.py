@@ -119,7 +119,7 @@ def config_notebook_plotting(
         backend: Name of backend to be passed to
             :func:`set_notebook_plot_backend`.
         discard_return: Flag indicating whether to discard the return
-            value of functions :func:`.plot`, :func:`.surf`,
+            value of functions :func:`.plot`, :func:`.surface`,
             :func:`.contour`, and :func:`.imview` to avoid undesired
             output in a notebook when the output is not assigned to a
             variable. If ``True``, this choice can be overridden for
@@ -145,7 +145,7 @@ def config_notebook_plotting(
         # are duplicated if the return value from the original function is
         # not assigned to a variable)
         if discard_return:
-            for func in (module.plot, module.surf, module.contour, module.imview):
+            for func in (module.plot, module.surface, module.contour, module.imview):
                 setattr(module, func.__name__, discard_func_return(func))
 
         # Disable figure show method (results in a warning if used within
