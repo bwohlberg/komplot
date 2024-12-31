@@ -225,6 +225,13 @@ def volview(
             "upper" and "lower" (see :code:`origin` parameter of
             :meth:`~matplotlib.axes.Axes.imshow`). The location of the
             plot x-ticks indicates which of these options was selected.
+        vmin_quantile: Specify color map :code:`vmin` and :code:`vmax`
+            based on pixel value quantiles. The default of 0.0
+            corresponds to setting :code:`vmin` and :code:`vmax` to the
+            minimum and maximum pixel value respectively. If it is
+            non-zero, :code:`vmin` and :code:`vmax` are set to the
+            :code:`vmin_quantile` quantile and the 1 -
+            :code:`vmin_quantile` respectively.
         norm: Specify the :class:`~matplotlib.colors.Normalize` instance
             used to scale pixel values for input to the color map.
         show_cbar: Flag indicating whether to display a colorbar. If set
@@ -271,7 +278,7 @@ def volview(
         if vmin_quantile == 0.0:
             vmin, vmax = volume.min(), volume.max()
         else:
-            vmin, vmax = np.quantile(volume, [vmin_quantile, 1.0 - vmin_quantile])
+            vmin, vmax = np.quantile(volume, [vmin_quantile, 1.0 - vmin_quantile])  # type: ignore
         kwargs = {"vmin": vmin, "vmax": vmax}
     else:
         kwargs = {"norm": norm}
