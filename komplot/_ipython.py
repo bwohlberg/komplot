@@ -10,8 +10,7 @@
 import importlib.util
 import os
 import sys
-from functools import wraps
-from typing import Callable, Optional
+from typing import Optional
 
 HAVE_IPYMPL = bool(importlib.util.find_spec("ipympl"))
 
@@ -88,25 +87,7 @@ def set_notebook_plot_backend(backend: Optional[str] = None):
         get_ipython().run_line_magic("matplotlib", backend)  # type: ignore
 
 
-def discard_func_return(func: Callable) -> Callable:
-    """Return value discarding wrapper."""
-
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        discard = kwargs.pop("discard_return", True)
-        ret = func(*args, **kwargs)
-        if discard:
-            return None
-        else:
-            return ret
-
-    wrapper._discard_return = True  # type: ignore  # pylint: disable=W0212
-    return wrapper
-
-
-def config_notebook_plotting(
-    backend: Optional[str] = None, discard_return: bool = True
-):
+def config_notebook_plotting(backend: Optional[str] = None):
     """Configure plotting functions for inline plotting.
 
     Configure plotting functions for inline plotting within a Jupyter
@@ -118,41 +99,16 @@ def config_notebook_plotting(
     Args:
         backend: Name of backend to be passed to
             :func:`set_notebook_plot_backend`.
-        discard_return: Flag indicating whether to discard the return
-            value of functions :func:`.plot`, :func:`.surf`,
-            :func:`.contour`, and :func:`.imview` to avoid undesired
-            output in a notebook when the output is not assigned to a
-            variable. If ``True``, this choice can be overridden for
-            individual function calls by setting parameter
-            :code:`keep_return` to ``True``. (This parameter is added
-            by the function wrapper installed by
-            :func:`config_notebook_plotting`.)
-
     """
-    # Check whether running within a notebook shell and have
-    # not already monkey patched the plot function
+    # Check whether running within a notebook shell
     module = sys.modules[__name__.split(".")[0]]
-    if _in_notebook() and not hasattr(module.plot, "_discard_return"):
+    if _in_notebook():
         # Set backend if specified by environment variable
         if "MATPLOTLIB_IPYNB_BACKEND" in os.environ:
             if os.environ["MATPLOTLIB_IPYNB_BACKEND"] != "":
                 set_notebook_plot_backend(os.environ["MATPLOTLIB_IPYNB_BACKEND"])
         else:
             set_notebook_plot_backend(backend)
-
-        # Replace plot etc. functions with a wrapper function that discards
-        # their return values (within a notebook with inline plotting, plots
-        # are duplicated if the return value from the original function is
-        # not assigned to a variable)
-        if discard_return:
-            for func in (
-                module.plot,
-                module.surface,
-                module.contour,
-                module.imview,
-                module.volview,
-            ):
-                setattr(module, func.__name__, discard_func_return(func))
 
         # Disable figure show method (results in a warning if used within
         # a notebook with inline plotting)

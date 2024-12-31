@@ -53,8 +53,7 @@ def plot(
     ax: Optional[Axes] = None,
     **kwargs,
 ) -> LinePlot:
-    """
-    Plot points or lines in 2D.
+    """Plot points or lines in 2D.
 
     Plot points or lines in 2D. Largely replicates the interface of
     :meth:`~matplotlib.axes.Axes.plot`, with the following execeptions

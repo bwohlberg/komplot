@@ -11,6 +11,7 @@ Alternative high-level interface to selected :mod:`matplotlib`
 plotting functions.
 """
 
+import functools
 import sys
 from importlib.metadata import PackageNotFoundError, version
 
@@ -87,6 +88,37 @@ __all__ = [
 ]
 
 
-# Imported items in __all__ appear to originate in top-level functional module
+# Imported items in __all__ appear to originate in top-level module
 for name in __all__:
     getattr(sys.modules[__name__], name).__module__ = __name__
+
+
+# Construct no-return-value versions of main plotting functions
+def _discard_return(func, name):
+    def wrapper(*args, **kwargs):
+        func(*args, **kwargs)
+
+    wrapper.__name__ = name
+    wrapper.__qualname__ = name
+    attr = "__annotate__" if hasattr(func, "__annotate__") else "__annotations__"
+    setattr(wrapper, attr, getattr(func, attr).copy())
+    del getattr(wrapper, attr)["return"]
+    if hasattr(func, "__type_params__"):
+        wrapper.__type_params__ = func.__type_params__
+    docs = func.__doc__.split("\n")
+    wrapper.__doc__ = (
+        docs[0]
+        + "\n"
+        + f"""
+    This version of :func:`{func.__name__}` discards the return value, for use in
+    Jupyter notebooks where the return value is not needed, and which would clutter
+    the following output cell.
+    """
+    )
+    return wrapper
+
+
+for func in (plot, contour, surface, imview):
+    name = func.__name__ + "_"
+    setattr(sys.modules[__name__], name, _discard_return(func, name))
+del func
