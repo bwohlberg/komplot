@@ -95,7 +95,8 @@ Viewer for slices of 3D volumes
     from imageio.v3 import imread
     import komplot as kplt
     vol = imread("imageio:stent.npz")
-    iv = kplt.volview(vol.transpose((1, 2, 0)), slice_axis=0, cmap="Blues", show_cbar=True)
+    iv = kplt.volview(vol.transpose((1, 2, 0)), slice_axis=0, vmin_quantile=1e-2, cmap="Blues",
+		      show_cbar=True)
     iv.set_volume_slice(110)
 
 
