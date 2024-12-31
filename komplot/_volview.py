@@ -188,7 +188,8 @@ def volview(
     slice_axis: int = 0,
     interpolation: str = "nearest",
     origin: str = "upper",
-    norm: Normalize = None,
+    vmin_quantile: float = 1e-2,
+    norm: Optional[Normalize] = None,
     show_cbar: Optional[bool] = False,
     cmap: Optional[Union[Colormap, str]] = None,
     title: Optional[str] = None,
@@ -266,9 +267,14 @@ def volview(
     )
     image = volume[0]  # current slice
 
-    kwargs = (
-        {"vmin": volume.min(), "vmax": volume.max()} if norm is None else {"norm": norm}
-    )
+    if norm is None:
+        if vmin_quantile == 0.0:
+            vmin, vmax = volume.min(), volume.max()
+        else:
+            vmin, vmax = np.quantile(volume, [vmin_quantile, 1.0 - vmin_quantile])
+        kwargs = {"vmin": vmin, "vmax": vmax}
+    else:
+        kwargs = {"norm": norm}
     fig, ax, show, axim, divider, cax, cbar_orient = _image_view(
         image,
         interpolation=interpolation,

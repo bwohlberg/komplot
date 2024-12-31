@@ -241,7 +241,8 @@ def imview(
     *,
     interpolation: str = "nearest",
     origin: str = "upper",
-    norm: Normalize = None,
+    vmin_quantile: float = 1e-2,
+    norm: Optional[Normalize] = None,
     show_cbar: Optional[bool] = False,
     cmap: Optional[Union[Colormap, str]] = None,
     title: Optional[str] = None,
@@ -264,12 +265,9 @@ def imview(
       `interactive features <https://matplotlib.org/stable/users/explain/figure/interactive.html#interactive-navigation>`__.
 
     Args:
-        image: Image or volume to display. An image should be two or three
-            dimensional, with the third dimension, if present,
-            representing color and opacity channels, and having size
-            3 or 4. A volume should be three or four dimensional, with
-            the final dimension after exclusion of the axis identified by
-            :code:`vol_slice_axis` having size 3 or 4.
+        image: Image to display. It should be two or three dimensional,
+            with the third dimension, if present, representing color and
+            opacity channels, and having size 3 or 4.
         interpolation: Specify type of interpolation used to display
             image (see :code:`interpolation` parameter of
             :meth:`~matplotlib.axes.Axes.imshow`).
@@ -299,9 +297,14 @@ def imview(
         ValueError: If the input array is not of the required shape.
     """
 
-    kwargs = (
-        {"vmin": image.min(), "vmax": image.max()} if norm is None else {"norm": norm}
-    )
+    if norm is None:
+        if vmin_quantile == 0.0:
+            vmin, vmax = image.min(), image.max()
+        else:
+            vmin, vmax = np.quantile(image, [vmin_quantile, 1.0 - vmin_quantile])
+        kwargs = {"vmin": vmin, "vmax": vmax}
+    else:
+        kwargs = {"norm": norm}
     fig, ax, show, axim, divider, cax, cbar_orient = _image_view(
         image,
         interpolation=interpolation,
