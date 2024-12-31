@@ -241,7 +241,7 @@ def imview(
     *,
     interpolation: str = "nearest",
     origin: str = "upper",
-    vmin_quantile: float = 1e-2,
+    vmin_quantile: float = 0.0,
     norm: Optional[Normalize] = None,
     show_cbar: Optional[bool] = False,
     cmap: Optional[Union[Colormap, str]] = None,
@@ -283,7 +283,10 @@ def imview(
             :code:`vmin_quantile` quantile and the 1 -
             :code:`vmin_quantile` respectively.
         norm: Specify the :class:`~matplotlib.colors.Normalize` instance
-            used to scale pixel values for input to the color map.
+            used to scale pixel values for input to the color map. If not
+            ``None``, it is used to define the color map range instead of
+            the :code:`vmin` and :code:`vmax` determined by
+            :code:`vmin_quantile`.
         show_cbar: Flag indicating whether to display a colorbar. If set
             to ``None``, create an invisible colorbar so that the image
             occupies the same amount of space in a subplot as one with a
