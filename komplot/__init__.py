@@ -118,7 +118,7 @@ def _discard_return(func, name):
     return wrapper
 
 
-for func in (plot, contour, surface, imview):
+for func in (plot, contour, surface, imview, volview):
     name = func.__name__ + "_"
     setattr(sys.modules[__name__], name, _discard_return(func, name))
 del func
