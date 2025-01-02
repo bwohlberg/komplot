@@ -28,7 +28,7 @@ try:
 except KeyError:
     release = _package_version()
 version = project + " " + release
-copyright = "2024, " + author
+copyright = "2024-2025, " + author
 
 
 # -- General configuration ---------------------------------------------------
