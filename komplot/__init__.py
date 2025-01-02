@@ -22,6 +22,7 @@ from matplotlib.pyplot import figure, gca, gcf, savefig, subplot, subplots
 
 from ._contour import contour, ContourPlot
 from ._imview import imview, ImageView, ImageViewEventManager
+from ._volview import volview, VolumeView, VolumeViewEventManager
 from ._plot import plot, LinePlot
 from ._surface import surface, SurfacePlot
 from ._event import (
@@ -64,11 +65,13 @@ __all__ = [
     "imview",
     "plot",
     "surface",
+    "volview",
     "close",
     "ContourPlot",
     "ImageView",
     "LinePlot",
     "SurfacePlot",
+    "VolumeView",
     "GenericPlot",
     "ZoomablePlot",
     "ColorbarPlot",
@@ -78,6 +81,7 @@ __all__ = [
     "ZoomEventManager",
     "ColorbarEventManager",
     "ImageViewEventManager",
+    "VolumeViewEventManager",
     "set_ipython_plot_backend",
     "set_notebook_plot_backend",
     "config_notebook_plotting",
@@ -114,7 +118,7 @@ def _discard_return(func, name):
     return wrapper
 
 
-for func in (plot, contour, surface, imview):
+for func in (plot, contour, surface, imview, volview):
     name = func.__name__ + "_"
     setattr(sys.modules[__name__], name, _discard_return(func, name))
 del func
