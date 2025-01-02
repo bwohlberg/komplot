@@ -49,6 +49,7 @@ def contour(
     xlog: bool = False,
     ylog: bool = False,
     levels: Union[int, Sequence[float]] = 5,
+    clabel_inline: bool = True,
     clabel_format: Optional[str] = None,
     clabel_fontsize: Optional[int] = 10,
     cmap: Optional[Union[Colormap, str]] = None,
@@ -85,6 +86,8 @@ def contour(
         ylog: Set y-axis to log scale.
         levels: An int specifying the number of contours to plot, or a
             sequence specifying the specific contour levels to plot.
+        clabel_inline: Value of parameter :code:`inline` of
+            :meth:`~matplotlib.axes.Axes.clabel`.
         clabel_format: Format string for contour labels.
         clabel_fontsize: Contour label font size. No contour labels are
             displayed if set to 0 or ``None``.
@@ -129,7 +132,7 @@ def contour(
     if clabel_format is not None:
         clabel_kwargs["fmt"] = clabel_format
     if clabel_kwargs:
-        plt.clabel(qcntset, inline=True, **clabel_kwargs)
+        ax.clabel(qcntset, inline=clabel_inline, **clabel_kwargs)
 
     qmesh = ax.pcolormesh(
         xg,
