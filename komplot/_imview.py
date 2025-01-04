@@ -5,7 +5,7 @@
 # and user license can be found in the 'LICENSE.txt' file distributed
 # with the package.
 
-"""Image and volume viewer."""
+"""Image viewer."""
 
 
 from dataclasses import dataclass
@@ -15,10 +15,8 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.axes import Axes
-from matplotlib.backend_bases import Event
 from matplotlib.colors import Colormap, Normalize
 from matplotlib.figure import Figure
-from matplotlib.widgets import Slider
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from mpl_toolkits.axes_grid1.axes_divider import AxesDivider
 
@@ -45,40 +43,7 @@ class ImageView(ColorbarPlot):
         divider: The :class:`~mpl_toolkits.axes_grid1.axes_divider.AxesDivider`
            used to create axes for the colorbar.
         cbar_axes: The axes of the colorbar.
-        volume: The volume array (when a volume slice is being displayed,
-           otherwise ``None``).
-        slice_index: The index of the volume slice (only meaningful when
-           a volume slice is being displayed).
-        slider_axes: The axes of the volume slice index selection slider.
-        slider: The volume slice index selection slider widget.
     """
-
-    volume: Optional[np.ndarray] = None
-    slice_index: int = 0
-    slider_axes: Optional[Axes] = None
-    slider: Optional[Slider] = None
-
-    def set_volume_slice(self, index: int, update_slider: bool = True):
-        """Set the volume slice index.
-
-        Set the volume slice index. May only be used when a slice of a
-        3D volume is being displayed.
-
-        Args:
-            index: Index of volume slice to display.
-            update_slider: If ``True`` also update the volume slice
-              selection sider widget to the selected index.
-        """
-        self.slice_index = index
-        if self.slider is not None and update_slider:
-            self.slider.set_val(self.slice_index)
-        im = self.axesimage
-        assert self.volume is not None
-        im.set_data(self.volume[self.slice_index])
-        self.axes.figure.canvas.draw_idle()
-
-        msg = f"Slice index {self.slice_index} of {self.volume.shape[0]}"
-        self.toolbar_message(msg)
 
 
 class ImageViewEventManager(ColorbarEventManager):
@@ -89,12 +54,6 @@ class ImageViewEventManager(ColorbarEventManager):
 
     *Mouse wheel scroll*
        Zoom in or out at current cursor location.
-
-    *Mouse wheel scroll with shift key depressed*
-       Shift the displayed slice when displaying a volume.
-
-    *Click or drag slider widget*
-       Change the displayed slice when displaying a volume.
 
     *Mouse wheel scroll in bottom half of colorbar*
        Increase or decrease colormap :code:`vmin`.
@@ -123,49 +82,6 @@ class ImageViewEventManager(ColorbarEventManager):
             cmap_delta: Fraction of colormap range for vmin/vmax shifts.
         """
         super().__init__(axes, fig_event_man, iview, zoom_scale=zoom_scale)
-        if iview.slider is not None:
-            iview.slider.on_changed(lambda val: self.slider_event_handler(val))
-
-    def scroll_event_handler(self, event: Event):
-        """Calback for mouse scroll events."""
-        if event.inaxes == self.axes and self.fig_event_man.key_pressed["shift"]:
-            if self.fig_event_man.slice_share_axes:
-                for ssax in self.fig_event_man.slice_share_axes:
-                    axevman = self.fig_event_man.get_axevman_for_axes(ssax)
-                    axevman.shift_slice_event_handler(event)
-            else:
-                self.shift_slice_event_handler(event)
-        else:
-            super().scroll_event_handler(event)
-
-    def shift_slice_event_handler(self, event: Event):
-        """Handle shift slice event."""
-        index = self.plot.slice_index
-        assert self.plot.volume is not None
-        if event.button == "up":
-            if self.plot.slice_index < self.plot.volume.shape[0] - 1:
-                index += 1
-        elif event.button == "down":
-            if self.plot.slice_index > 0:
-                index -= 1
-        self.plot.set_volume_slice(index, update_slider=True)
-
-    def slider_event_handler(self, val: int):
-        """Calback for slider widget changes."""
-        if self.fig_event_man.slice_share_axes:  # Slice display axes are shared
-            # Iterate over all slice display axes for this figure
-            for scax in self.fig_event_man.slice_share_axes:
-                # Change displayed slice for all shared axes
-                axevman = self.fig_event_man.get_axevman_for_axes(scax)
-                axevman.plot.set_volume_slice(val, update_slider=False)
-                # Ensure that slider is updated for axes other than the one on
-                # which the slice change was triggered
-                if scax != self.axes:
-                    axevman.plot.slider.eventson = False
-                    axevman.plot.slider.set_val(val)
-                    axevman.plot.slider.eventson = True
-        else:  # Slice display axes are not shared
-            self.plot.set_volume_slice(val, update_slider=False)
 
 
 def _format_coord(x: float, y: float, image: np.ndarray) -> str:
@@ -219,7 +135,7 @@ def _create_colorbar(
     divider: AxesDivider,
     orient: str,
     visible: bool = True,
-) -> Tuple[Axes, str]:
+) -> Axes:
     """Create a colorbar attached to the displayed image.
 
     If `visible` is ``False``, ensure the colorbar is invisible, for use
@@ -242,31 +158,91 @@ def _create_colorbar(
     return cax
 
 
-def _create_slider(
-    divider: AxesDivider, volume: np.ndarray, orient: str, pad: float = 0.1
-) -> Tuple[Axes, Slider]:
-    """Create a volume slice slider attached to the displayed slice."""
-    pos = "left" if orient == "vertical" else "bottom"
-    sax = divider.append_axes(pos, size="5%", pad=pad)
-    slider = Slider(
-        ax=sax,
-        label="Slice",
-        valmin=0,
-        valmax=volume.shape[0] - 1,
-        valstep=range(volume.shape[0]),
-        valinit=0,
-        orientation=orient,
+def _image_view(
+    image: np.ndarray,
+    *,
+    interpolation: str = "nearest",
+    origin: str = "upper",
+    imshow_kwargs: Optional[dict] = None,
+    make_divider: bool = False,
+    show_cbar: Optional[bool] = False,
+    cmap: Optional[Union[Colormap, str]] = None,
+    title: Optional[str] = None,
+    figsize: Optional[Tuple[int, int]] = None,
+    fignum: Optional[int] = None,
+    ax: Optional[Axes] = None,
+) -> Tuple[
+    Figure,
+    Axes,
+    bool,
+    mpl.image.AxesImage,
+    Optional[AxesDivider],
+    Optional[Axes],
+    Optional[str],
+]:
+    """Set up a basic image display.
+
+    Set up an image display with basic features.
+    """
+
+    if image.ndim not in (2, 3) or (image.ndim == 3 and image.shape[-1] not in (3, 4)):
+        raise ValueError(
+            f"Argument image shape {image.shape} not appropriate for image display."
+        )
+
+    fig, ax, show = figure_and_axes(ax, figsize=figsize, fignum=fignum)
+
+    try:
+        ax.set_adjustable("box")
+    except ValueError:
+        ax.set_adjustable("imagelim")
+
+    if cmap is None and image.ndim == 2:
+        cmap = mpl.cm.Greys_r  # pylint: disable=E1101
+
+    if imshow_kwargs is None:
+        imshow_kwargs = {}
+    axim = ax.imshow(
+        image, cmap=cmap, interpolation=interpolation, origin=origin, **imshow_kwargs
     )
-    return sax, slider
+
+    if origin == "upper":
+        ax.tick_params(axis="x", top=True, bottom=False)
+    else:
+        ax.tick_params(axis="x", top=False, bottom=True)
+    ax.set_yticklabels([])
+    ax.set_xticklabels([])
+
+    if title is not None:
+        ax.set_title(title)
+
+    ax.format_coord = lambda x, y: _format_coord(x, y, image)
+    _patch_coord_statusbar(fig)
+
+    if HAVE_MPLCRS:
+        mplcrs.cursor(axim)
+
+    divider = make_axes_locatable(ax) if make_divider else None
+    if show_cbar or show_cbar is None:
+        if divider is None:
+            divider = make_axes_locatable(ax)
+        cbar_orient = "vertical" if image.shape[0] >= image.shape[1] else "horizontal"
+        cax = _create_colorbar(
+            ax, axim, divider, orient=cbar_orient, visible=show_cbar is not None
+        )
+    else:
+        cbar_orient, cax = None, None
+
+    return fig, ax, show, axim, divider, cax, cbar_orient
 
 
 def imview(
-    data: np.ndarray,
+    image: np.ndarray,
     *,
-    vol_slice_axis: Optional[int] = None,
     interpolation: str = "nearest",
     origin: str = "upper",
-    norm: Normalize = None,
+    vmin_quantile: float = 0.0,
+    norm: Optional[Normalize] = None,
     show_cbar: Optional[bool] = False,
     cmap: Optional[Union[Colormap, str]] = None,
     title: Optional[str] = None,
@@ -274,11 +250,10 @@ def imview(
     fignum: Optional[int] = None,
     ax: Optional[Axes] = None,
 ) -> ImageView:
-    """Display an image or a slice of a volume.
+    """Display an image.
 
-    Display an image or a slice of a volume. Pixel values are displayed
-    when the pointer is over valid image data. Supports the following
-    features:
+    Display an image. Pixel values are displayed when the pointer is over
+    valid image data. Supports the following features:
 
     - If an axes is not specified (via parameter :code:`ax`), a new
       figure and axes are created, and
@@ -290,14 +265,9 @@ def imview(
       `interactive features <https://matplotlib.org/stable/users/explain/figure/interactive.html#interactive-navigation>`__.
 
     Args:
-        data: Image or volume to display. An image should be two or three
-            dimensional, with the third dimension, if present,
-            representing color and opacity channels, and having size
-            3 or 4. A volume should be three or four dimensional, with
-            the final dimension after exclusion of the axis identified by
-            :code:`vol_slice_axis` having size 3 or 4.
-        vol_slice_axis: The axis of :code:`data`, if any, from which to
-            select volume slices for display.
+        image: Image to display. It should be two or three dimensional,
+            with the third dimension, if present, representing color and
+            opacity channels, and having size 3 or 4.
         interpolation: Specify type of interpolation used to display
             image (see :code:`interpolation` parameter of
             :meth:`~matplotlib.axes.Axes.imshow`).
@@ -305,8 +275,18 @@ def imview(
             "upper" and "lower" (see :code:`origin` parameter of
             :meth:`~matplotlib.axes.Axes.imshow`). The location of the
             plot x-ticks indicates which of these options was selected.
+        vmin_quantile: Specify color map :code:`vmin` and :code:`vmax`
+            based on pixel value quantiles. The default of 0.0
+            corresponds to setting :code:`vmin` and :code:`vmax` to the
+            minimum and maximum pixel value respectively. If it is
+            non-zero, :code:`vmin` and :code:`vmax` are set to the
+            :code:`vmin_quantile` quantile and the 1 -
+            :code:`vmin_quantile` respectively.
         norm: Specify the :class:`~matplotlib.colors.Normalize` instance
-            used to scale pixel values for input to the color map.
+            used to scale pixel values for input to the color map. If not
+            ``None``, it is used to define the color map range instead of
+            the :code:`vmin` and :code:`vmax` determined by
+            :code:`vmin_quantile`.
         show_cbar: Flag indicating whether to display a colorbar. If set
             to ``None``, create an invisible colorbar so that the image
             occupies the same amount of space in a subplot as one with a
@@ -327,106 +307,33 @@ def imview(
         ValueError: If the input array is not of the required shape.
     """
 
-    if vol_slice_axis is None:  # image display
-        if data.ndim not in (2, 3) or (data.ndim == 3 and data.shape[-1] not in (3, 4)):
-            raise ValueError(
-                f"Argument data shape {data.shape} not appropriate for image display."
-            )
-        data_shape = data.shape
-        image = data
-        volume = None
-    else:  # volume slice display
-        if vol_slice_axis < 0:
-            vol_slice_axis = data.ndim + vol_slice_axis
-        data_shape = data.shape[0:vol_slice_axis] + data.shape[vol_slice_axis + 1 :]  # type: ignore
-        if data.ndim not in (3, 4) or (data.ndim == 4 and data_shape[-1] not in (3, 4)):
-            raise ValueError(
-                f"Argument data shape {data.shape} not appropriate for volume slice "
-                f"display with vol_slice_axis={vol_slice_axis}."
-            )
-
-        assert isinstance(vol_slice_axis, int)
-        data = np.transpose(
-            data,
-            (vol_slice_axis,)
-            + tuple(range(0, vol_slice_axis))
-            + tuple(
-                range(vol_slice_axis + 1, data.ndim)
-            ),  # move slice axis to position 0
-        )
-        image = data[0]  # current slice
-        volume = data
-
-    fig, ax, show = figure_and_axes(ax, figsize=figsize, fignum=fignum)
-
-    try:
-        ax.set_adjustable("box")
-    except ValueError:
-        ax.set_adjustable("datalim")
-
-    if cmap is None and data.ndim == 2:
-        cmap = mpl.cm.Greys_r  # pylint: disable=E1101
-
-    kwargs = (
-        {"vmin": data.min(), "vmax": data.max()} if norm is None else {"norm": norm}
-    )
-    axim = ax.imshow(
-        image, cmap=cmap, interpolation=interpolation, origin=origin, **kwargs
-    )
-
-    if origin == "upper":
-        ax.tick_params(axis="x", top=True, bottom=False)
-    else:
-        ax.tick_params(axis="x", top=False, bottom=True)
-    ax.set_yticklabels([])
-    ax.set_xticklabels([])
-
-    if title is not None:
-        ax.set_title(title)
-
-    if vol_slice_axis is not None or show_cbar or show_cbar is None:
-        divider = make_axes_locatable(ax)
-    else:
-        divider = None
-
-    if show_cbar or show_cbar is None:
-        cbar_orient = "vertical" if image.shape[0] >= image.shape[1] else "horizontal"
-        cax = _create_colorbar(
-            ax, axim, divider, orient=cbar_orient, visible=show_cbar is not None
-        )
-    else:
-        cbar_orient, cax = None, None
-
-    if vol_slice_axis is not None:
-        assert volume is not None
-        pad = 0.35 if show_cbar and cbar_orient == "horizontal" else 0.1
-        if image.shape[0] >= 2 * image.shape[1]:
-            slider_orient = "vertical"
-            pad = 0.25
+    if norm is None:
+        if vmin_quantile == 0.0:
+            vmin, vmax = image.min(), image.max()
         else:
-            slider_orient = "horizontal"
-        sax, vol_slider = _create_slider(divider, volume, orient=slider_orient, pad=pad)
+            vmin, vmax = np.quantile(image, [vmin_quantile, 1.0 - vmin_quantile])  # type: ignore
+        kwargs = {"vmin": vmin, "vmax": vmax}
     else:
-        sax, vol_slider = None, None
-
-    ax.format_coord = lambda x, y: _format_coord(x, y, image)
-    _patch_coord_statusbar(fig)
-
-    if HAVE_MPLCRS:
-        mplcrs.cursor(axim)
+        kwargs = {"norm": norm}
+    fig, ax, show, axim, divider, cax, cbar_orient = _image_view(
+        image,
+        interpolation=interpolation,
+        origin=origin,
+        imshow_kwargs=kwargs,
+        make_divider=False,
+        show_cbar=show_cbar,
+        cmap=cmap,
+        title=title,
+        figsize=figsize,
+        fignum=fignum,
+        ax=ax,
+    )
 
     if show:
         fig.show()
 
     imvw = ImageView(
-        figure=fig,
-        axes=ax,
-        axesimage=axim,
-        divider=divider,
-        cbar_axes=cax,
-        volume=volume,
-        slider_axes=sax,
-        slider=vol_slider,
+        figure=fig, axes=ax, axesimage=axim, divider=divider, cbar_axes=cax
     )
 
     if not hasattr(fig, "_event_manager"):
