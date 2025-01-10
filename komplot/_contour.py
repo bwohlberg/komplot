@@ -22,7 +22,7 @@ from ._event import ColorbarEventManager, FigureEventManager, figure_event_manag
 from ._state import ColorbarPlot, figure_and_axes
 
 
-@dataclass(kw_only=True)
+@dataclass(repr=False, kw_only=True)
 class ContourPlot(ColorbarPlot):
     """State of contour plot.
 

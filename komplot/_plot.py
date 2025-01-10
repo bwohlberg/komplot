@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright (C) 2024 by Brendt Wohlberg <brendt@ieee.org>
+# Copyright (C) 2024-2025 by Brendt Wohlberg <brendt@ieee.org>
 # All rights reserved. BSD 3-clause License.
 # This file is part of the komplot package. Details of the copyright
 # and user license can be found in the 'LICENSE.txt' file distributed
@@ -25,7 +25,7 @@ else:
     HAVE_MPLCRS = True
 
 
-@dataclass(kw_only=True)
+@dataclass(repr=False, kw_only=True)
 class LinePlot(ZoomablePlot):
     """State of 2d line/point plot.
 
