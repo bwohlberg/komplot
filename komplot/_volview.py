@@ -57,8 +57,7 @@ class VolumeView(ImageView):
     ):
         """Set the volume slice index.
 
-        Set the volume slice index. May only be used when a slice of a
-        3D volume is being displayed.
+        Set the volume slice index.
 
         Args:
             index: Index of volume slice to display.
@@ -134,6 +133,7 @@ class VolumeViewEventManager(ImageViewEventManager):
             if self.fig_event_man.slice_share_axes:  # Slice display axes are shared
                 # Iterate over all slice display axes for this figure
                 for ssax in self.fig_event_man.slice_share_axes:
+                    # Send event to each shared axes
                     axevman = self.fig_event_man.get_axevman_for_axes(ssax)
                     axevman.shift_slice_event_handler(event)
             else:  # Slice display axes are not shared
@@ -157,13 +157,13 @@ class VolumeViewEventManager(ImageViewEventManager):
         """Calback for slider widget changes."""
         if self.fig_event_man.slice_share_axes:  # Slice display axes are shared
             # Iterate over all slice display axes for this figure
-            for scax in self.fig_event_man.slice_share_axes:
+            for ssax in self.fig_event_man.slice_share_axes:
                 # Change displayed slice for all shared axes
-                axevman = self.fig_event_man.get_axevman_for_axes(scax)
+                axevman = self.fig_event_man.get_axevman_for_axes(ssax)
                 axevman.plot.set_volume_slice(val, update_slider=False)
                 # Ensure that slider is updated for axes other than the one on
                 # which the slice change was triggered
-                if scax != self.axes:
+                if ssax != self.axes:
                     axevman.plot.slider.eventson = False
                     axevman.plot.slider.set_val(val)
                     axevman.plot.slider.eventson = True
