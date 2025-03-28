@@ -25,7 +25,11 @@ else:
     HAVE_MPLCRS = True
 
 
-@dataclass(repr=False, kw_only=True)
+# kw_only only supported from Python 3.10
+KW_ONLY = {"kw_only": True} if "kw_only" in dataclass.__kwdefaults__ else {}
+
+
+@dataclass(repr=False, **KW_ONLY)
 class LinePlot(ZoomablePlot):
     """State of 2d line/point plot.
 

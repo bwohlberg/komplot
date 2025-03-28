@@ -18,6 +18,9 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from mpl_toolkits.axes_grid1.axes_divider import AxesDivider
 
+# kw_only only supported from Python 3.10
+KW_ONLY = {"kw_only": True} if "kw_only" in dataclass.__kwdefaults__ else {}
+
 
 def figure_and_axes(
     ax: Optional[Axes],
@@ -55,7 +58,7 @@ def figure_and_axes(
     return fig, ax, new_fig
 
 
-@dataclass(repr=False, kw_only=True)
+@dataclass(repr=False, **KW_ONLY)
 class GenericPlot:
     """Generic plot state.
 
@@ -77,7 +80,7 @@ class GenericPlot:
             self.axes.figure.canvas.toolbar.set_message(msg)
 
 
-@dataclass(repr=False, kw_only=True)
+@dataclass(repr=False, **KW_ONLY)
 class ZoomablePlot(GenericPlot):
     """State for a plot supporting axis zoom.
 
@@ -172,7 +175,7 @@ class ZoomablePlot(GenericPlot):
         self.toolbar_message(msg)
 
 
-@dataclass(repr=False, kw_only=True)
+@dataclass(repr=False, **KW_ONLY)
 class ColorbarPlot(ZoomablePlot):
     """State of plot supporting axis zoom and a colorbar.
 

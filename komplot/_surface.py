@@ -20,8 +20,11 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from ._event import FigureEventManager
 from ._state import GenericPlot, figure_and_axes
 
+# kw_only only supported from Python 3.10
+KW_ONLY = {"kw_only": True} if "kw_only" in dataclass.__kwdefaults__ else {}
 
-@dataclass(repr=False, kw_only=True)
+
+@dataclass(repr=False, **KW_ONLY)
 class SurfacePlot(GenericPlot):
     """State of surface plot.
 

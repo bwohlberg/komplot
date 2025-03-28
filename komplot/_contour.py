@@ -21,8 +21,11 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from ._event import ColorbarEventManager, FigureEventManager, figure_event_manager
 from ._state import ColorbarPlot, figure_and_axes
 
+# kw_only only supported from Python 3.10
+KW_ONLY = {"kw_only": True} if "kw_only" in dataclass.__kwdefaults__ else {}
 
-@dataclass(repr=False, kw_only=True)
+
+@dataclass(repr=False, **KW_ONLY)
 class ContourPlot(ColorbarPlot):
     """State of contour plot.
 
