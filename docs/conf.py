@@ -101,7 +101,7 @@ nbsphinx_prolog = """
 html_theme = "furo"
 
 html_theme_options = {
-    "top_of_page_button": None,
+    "top_of_page_buttons": [],
     "sidebar_hide_name": True,
 }
 html_static_path = ["_static"]
