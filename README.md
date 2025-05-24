@@ -3,6 +3,7 @@
 [![Code style](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Documentation Status](https://readthedocs.org/projects/komplot/badge/?version=latest)](http://komplot.readthedocs.io/en/latest/?badge=latest)
 [![PyPI package version](https://badge.fury.io/py/komplot.svg)](https://badge.fury.io/py/komplot)
+[![PyPI download statistics](https://static.pepy.tech/personalized-badge/komplot?period=total&left_color=grey&right_color=brightgreen&left_text=downloads)](https://pepy.tech/project/komplot)
 [![Run notebook on google colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/bwohlberg/komplot/blob/main/examples/komplot.ipynb)
 
 
