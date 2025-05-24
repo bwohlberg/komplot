@@ -78,6 +78,7 @@ napoleon_google_docstring = True
 napoleon_use_ivar = True
 napoleon_use_rtype = False
 
+nbsphinx_execute = "always"
 nbsphinx_prolog = """
 .. raw:: html
 
