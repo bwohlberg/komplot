@@ -7,5 +7,6 @@ nbsphinx
 ipython
 ipykernel
 matplotlib
+ipympl
 numpy
 imageio
