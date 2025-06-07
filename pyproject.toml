@@ -30,7 +30,7 @@ enabled = true
 version_callback = "komplot:_package_version"
 
 [project.optional-dependencies]
-examples = ["imageio", "ipympl", "ipywidgets"]
+examples = ["imageio", "ipympl"]
 docs = [
      "imageio",
      "ipympl",
