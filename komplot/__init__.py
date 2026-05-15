@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright (C) 2024-2025 by Brendt Wohlberg <brendt@ieee.org>
+# Copyright (C) 2024-2026 by Brendt Wohlberg <brendt@ieee.org>
 # All rights reserved. BSD 3-clause License.
 # This file is part of the komplot package. Details of the copyright
 # and user license can be found in the 'LICENSE.txt' file distributed
@@ -15,7 +15,7 @@ import functools
 import sys
 from importlib.metadata import PackageNotFoundError, version
 
-from matplotlib import cm, rcParams
+from matplotlib import cm, colors, rcParams
 from matplotlib.pyplot import figure, gca, gcf, savefig, subplot, subplots
 
 # isort: off
@@ -40,7 +40,6 @@ from ._ipython import (
     set_notebook_plot_backend,
 )
 from ._version import local_version_label
-
 
 _public_version = "0.0.2.dev1"
 
@@ -106,15 +105,11 @@ def _discard_return(func, name):
     if hasattr(func, "__type_params__"):
         wrapper.__type_params__ = func.__type_params__
     docs = func.__doc__.split("\n")
-    wrapper.__doc__ = (
-        docs[0]
-        + "\n"
-        + f"""
+    wrapper.__doc__ = docs[0] + "\n" + f"""
     This version of :func:`{func.__name__}` discards the return value, for use in
     Jupyter notebooks where the return value is not needed, and which would clutter
     the following output cell.
     """
-    )
     return wrapper
 
 
