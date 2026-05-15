@@ -7,7 +7,6 @@
 
 """Point/line plotting."""
 
-
 from dataclasses import dataclass
 from typing import Optional, Sequence, Tuple
 

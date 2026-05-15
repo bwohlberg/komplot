@@ -7,9 +7,8 @@
 
 """Plot management classes."""
 
-
 from dataclasses import dataclass, field
-from typing import Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -19,7 +18,9 @@ from matplotlib.figure import Figure
 from mpl_toolkits.axes_grid1.axes_divider import AxesDivider
 
 # kw_only only supported from Python 3.10
-KW_ONLY = {"kw_only": True} if "kw_only" in dataclass.__kwdefaults__ else {}
+KW_ONLY: Dict[str, Any] = (
+    {"kw_only": True} if "kw_only" in dataclass.__kwdefaults__ else {}
+)
 
 
 def figure_and_axes(
@@ -48,6 +49,7 @@ def figure_and_axes(
         new_fig = True
     else:
         fig = ax.get_figure()
+        assert isinstance(fig, Figure)
         if proj3d:
             # See https://stackoverflow.com/a/43563804
             #     https://stackoverflow.com/a/35221116

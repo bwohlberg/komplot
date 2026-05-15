@@ -7,7 +7,6 @@
 
 """Image viewer."""
 
-
 from dataclasses import dataclass
 from typing import Optional, Tuple, Union
 

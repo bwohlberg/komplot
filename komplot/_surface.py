@@ -7,7 +7,6 @@
 
 """Surface plot."""
 
-
 from dataclasses import dataclass
 from typing import Optional, Sequence, Tuple, Union
 

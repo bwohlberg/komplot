@@ -60,6 +60,7 @@ class FigureEventManager:
 
         def key_press(event: Event):
             """Callback for key press events."""
+            assert hasattr(event, "key")
             if event.key == "q":
                 plt.close(fig)
             elif event.key == "pageup":
@@ -74,6 +75,7 @@ class FigureEventManager:
 
             If the released key is in the list of monitored keys, update
             its status record."""
+            assert hasattr(event, "key")
             if event.key in self.monitored_keys:
                 self.key_pressed[event.key] = False
 
@@ -84,6 +86,7 @@ class FigureEventManager:
             the figure since key release events will no longer be
             registered.
             """
+            assert hasattr(event, "key")
             self.key_pressed = {k: False for k in self.monitored_keys}
 
         # Attach this event manager to the figure and connect callbacks
@@ -233,12 +236,18 @@ class ZoomEventManager(AxesEventManager):
 
     def scroll_event_handler(self, event: Event):
         """Calback for mouse scroll events."""
+        assert hasattr(event, "inaxes") and hasattr(event, "axes")
         if event.inaxes == self.axes:
             if not any(self.fig_event_man.key_pressed.values()):  # zoom
                 self.zoom_event_handler(event)
 
     def zoom_event_handler(self, event: Event):
         """Handle axes zoom event."""
+        assert (
+            hasattr(event, "button")
+            and hasattr(event, "xdata")
+            and hasattr(event, "ydata")
+        )
         if event.button == "up":  # Deal with zoom in
             scale_factor = 1.0 / self.zoom_scale
         elif event.button == "down":  # Deal with zoom out
@@ -289,6 +298,7 @@ class ColorbarEventManager(ZoomEventManager):
 
     def scroll_event_handler(self, event: Event):
         """Calback for mouse scroll events."""
+        assert hasattr(event, "inaxes")
         if event.inaxes == self.plot.cbar_axes:  # cmap range change
             rel_pos = self.cbar_event_rel_pos(event)
             if self.fig_event_man.cmap_share_axes:
@@ -302,6 +312,7 @@ class ColorbarEventManager(ZoomEventManager):
 
     def cbar_event_rel_pos(self, event: Event):
         """Determine relative position of event in a colorbar."""
+        assert hasattr(event, "inaxes") and hasattr(event, "x") and hasattr(event, "y")
         if self.plot.cbar_axes is None or event.inaxes != self.plot.cbar_axes:
             return None
         box = self.plot.cbar_axes.get_window_extent().bounds

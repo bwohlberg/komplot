@@ -7,7 +7,6 @@
 
 """Support functions for a dynamic package version."""
 
-
 import os
 import re
 import subprocess

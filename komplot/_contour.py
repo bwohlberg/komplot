@@ -7,7 +7,6 @@
 
 """Contour plot."""
 
-
 from dataclasses import dataclass
 from typing import Dict, Optional, Sequence, Tuple, Union
 
