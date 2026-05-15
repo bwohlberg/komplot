@@ -15,7 +15,9 @@ from matplotlib.axes import Axes
 from matplotlib.backend_bases import Event
 from matplotlib.colors import Colormap, Normalize
 from matplotlib.widgets import Slider
-from mpl_toolkits.axes_grid1.axes_divider import AxesDivider
+from mpl_toolkits.axes_grid1.axes_divider import (
+    AxesDivider,  # type: ignore[import-untyped]
+)
 
 from ._event import FigureEventManager, figure_event_manager
 from ._imview import ImageView, ImageViewEventManager, _image_view
@@ -29,7 +31,7 @@ else:
 
 
 # kw_only only supported from Python 3.10
-KW_ONLY = {"kw_only": True} if "kw_only" in dataclass.__kwdefaults__ else {}
+KW_ONLY = {"kw_only": True} if "kw_only" in (dataclass.__kwdefaults__ or {}) else {}
 
 
 @dataclass(repr=False, **KW_ONLY)
@@ -128,7 +130,7 @@ class VolumeViewEventManager(ImageViewEventManager):
         """
         super().__init__(axes, fig_event_man, iview, zoom_scale=zoom_scale)
         if iview.slider is not None:
-            iview.slider.on_changed(lambda val: self.slider_event_handler(val))
+            iview.slider.on_changed(lambda val: self.slider_event_handler(int(val)))
 
     def scroll_event_handler(self, event: Event):
         """Calback for mouse scroll events."""
@@ -189,7 +191,7 @@ def _create_slider(
         valmax=volume.shape[0] - 1,
         valstep=range(volume.shape[0]),
         valinit=0,
-        orientation=orient,
+        orientation=orient,  # type: ignore[arg-type]
     )
     return sax, slider
 

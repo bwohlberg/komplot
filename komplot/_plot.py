@@ -8,7 +8,7 @@
 """Point/line plotting."""
 
 from dataclasses import dataclass
-from typing import Optional, Sequence, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 import matplotlib as mpl
 from matplotlib.axes import Axes
@@ -17,7 +17,7 @@ from ._event import FigureEventManager, ZoomEventManager, figure_event_manager
 from ._state import ZoomablePlot, figure_and_axes
 
 try:
-    import mplcursors as mplcrs
+    import mplcursors as mplcrs  # type: ignore[import-not-found]
 except ImportError:
     HAVE_MPLCRS = False
 else:
@@ -25,7 +25,7 @@ else:
 
 
 # kw_only only supported from Python 3.10
-KW_ONLY = {"kw_only": True} if "kw_only" in dataclass.__kwdefaults__ else {}
+KW_ONLY = {"kw_only": True} if "kw_only" in (dataclass.__kwdefaults__ or {}) else {}
 
 
 @dataclass(repr=False, **KW_ONLY)
@@ -39,7 +39,7 @@ class LinePlot(ZoomablePlot):
            :meth:`~matplotlib.axes.Axes.plot`.
     """
 
-    line2d: mpl.lines.Line2D
+    line2d: List[mpl.lines.Line2D]
 
 
 def plot(

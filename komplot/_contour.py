@@ -15,13 +15,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.colors import Colormap
-from mpl_toolkits.axes_grid1 import make_axes_locatable
+from mpl_toolkits.axes_grid1 import make_axes_locatable  # type: ignore[import-untyped]
 
 from ._event import ColorbarEventManager, FigureEventManager, figure_event_manager
 from ._state import ColorbarPlot, figure_and_axes
 
 # kw_only only supported from Python 3.10
-KW_ONLY = {"kw_only": True} if "kw_only" in dataclass.__kwdefaults__ else {}
+KW_ONLY = {"kw_only": True} if "kw_only" in (dataclass.__kwdefaults__ or {}) else {}
 
 
 @dataclass(repr=False, **KW_ONLY)
@@ -121,7 +121,7 @@ def contour(
         ax.set_yscale("log")
 
     if cmap is None:
-        cmap = mpl.cm.YlOrRd  # pylint: disable=E1101
+        cmap = mpl.cm.YlOrRd  # type: ignore[attr-defined]  # pylint: disable=E1101
 
     x = np.arange(z.shape[1]) if x is None else np.array(x)
     y = np.arange(z.shape[0]) if y is None else np.array(y)
@@ -168,7 +168,7 @@ def contour(
     cplot = ContourPlot(
         figure=fig,
         axes=ax,
-        axesimage=qmesh,
+        axesimage=qmesh,  # type: ignore[arg-type]
         divider=divider,
         cbar_axes=cax,
         qcntset=qcntset,
