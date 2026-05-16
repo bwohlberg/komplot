@@ -24,6 +24,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install mypy
+          pip install matplotlib
       - name: Run mypy
         run: |
           mypy komplot
