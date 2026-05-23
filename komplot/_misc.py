@@ -7,7 +7,6 @@
 
 """Miscellaneous functions."""
 
-
 from typing import Optional, Union
 
 import matplotlib.pyplot as plt

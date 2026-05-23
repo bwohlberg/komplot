@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
-# Copyright (C) 2024-2025 by Brendt Wohlberg <brendt@ieee.org>
+# Copyright (C) 2024-2026 by Brendt Wohlberg <brendt@ieee.org>
 # All rights reserved. BSD 3-clause License.
 # This file is part of the komplot package. Details of the copyright
 # and user license can be found in the 'LICENSE.txt' file distributed
 # with the package.
 
 """Volume viewer."""
-
 
 from dataclasses import dataclass
 from typing import Optional, Tuple, Union
@@ -16,7 +15,9 @@ from matplotlib.axes import Axes
 from matplotlib.backend_bases import Event
 from matplotlib.colors import Colormap, Normalize
 from matplotlib.widgets import Slider
-from mpl_toolkits.axes_grid1.axes_divider import AxesDivider
+from mpl_toolkits.axes_grid1.axes_divider import (
+    AxesDivider,  # type: ignore[import-untyped]
+)
 
 from ._event import FigureEventManager, figure_event_manager
 from ._imview import ImageView, ImageViewEventManager, _image_view
@@ -30,7 +31,7 @@ else:
 
 
 # kw_only only supported from Python 3.10
-KW_ONLY = {"kw_only": True} if "kw_only" in dataclass.__kwdefaults__ else {}
+KW_ONLY = {"kw_only": True} if "kw_only" in (dataclass.__kwdefaults__ or {}) else {}
 
 
 @dataclass(repr=False, **KW_ONLY)
@@ -129,10 +130,11 @@ class VolumeViewEventManager(ImageViewEventManager):
         """
         super().__init__(axes, fig_event_man, iview, zoom_scale=zoom_scale)
         if iview.slider is not None:
-            iview.slider.on_changed(lambda val: self.slider_event_handler(val))
+            iview.slider.on_changed(lambda val: self.slider_event_handler(int(val)))
 
     def scroll_event_handler(self, event: Event):
         """Calback for mouse scroll events."""
+        assert hasattr(event, "inaxes")
         if event.inaxes == self.axes and self.fig_event_man.key_pressed["shift"]:
             if self.fig_event_man.slice_share_axes:  # Slice display axes are shared
                 # Iterate over all slice display axes for this figure
@@ -147,6 +149,7 @@ class VolumeViewEventManager(ImageViewEventManager):
 
     def shift_slice_event_handler(self, event: Event):
         """Handle shift slice event."""
+        assert hasattr(event, "button")
         index = self.plot.slice_index
         assert self.plot.volume is not None
         if event.button == "up":
@@ -188,7 +191,7 @@ def _create_slider(
         valmax=volume.shape[0] - 1,
         valstep=range(volume.shape[0]),
         valinit=0,
-        orientation=orient,
+        orientation=orient,  # type: ignore[arg-type]
     )
     return sax, slider
 

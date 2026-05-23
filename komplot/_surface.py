@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
-# Copyright (C) 2024-2025 by Brendt Wohlberg <brendt@ieee.org>
+# Copyright (C) 2024-2026 by Brendt Wohlberg <brendt@ieee.org>
 # All rights reserved. BSD 3-clause License.
 # This file is part of the komplot package. Details of the copyright
 # and user license can be found in the 'LICENSE.txt' file distributed
 # with the package.
 
 """Surface plot."""
-
 
 from dataclasses import dataclass
 from typing import Optional, Sequence, Tuple, Union
@@ -15,13 +14,13 @@ import matplotlib as mpl
 import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.colors import Colormap
-from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection  # type: ignore[import-untyped]
 
 from ._event import FigureEventManager
 from ._state import GenericPlot, figure_and_axes
 
 # kw_only only supported from Python 3.10
-KW_ONLY = {"kw_only": True} if "kw_only" in dataclass.__kwdefaults__ else {}
+KW_ONLY = {"kw_only": True} if "kw_only" in (dataclass.__kwdefaults__ or {}) else {}
 
 
 @dataclass(repr=False, **KW_ONLY)
@@ -109,17 +108,17 @@ def surface(
     fig, ax, show = figure_and_axes(ax, figsize=figsize, fignum=fignum, proj3d=True)
 
     if elev is not None or azim is not None or roll is not None:
-        ax.view_init(elev=elev, azim=azim, roll=roll)
+        ax.view_init(elev=elev, azim=azim, roll=roll)  # type: ignore[attr-defined]
 
     if cmap is None:
-        cmap = mpl.cm.YlOrRd  # pylint: disable=E1101
+        cmap = mpl.cm.YlOrRd  # type: ignore[attr-defined]  # pylint: disable=E1101
 
     if x is None:
         x = np.arange(z.shape[1])
     if y is None:
         y = np.arange(z.shape[0])
     xg, yg = np.meshgrid(x, y)
-    poly3dc = ax.plot_surface(xg, yg, z, rstride=1, cstride=1, alpha=alpha, cmap=cmap)
+    poly3dc = ax.plot_surface(xg, yg, z, rstride=1, cstride=1, alpha=alpha, cmap=cmap)  # type: ignore[attr-defined]
 
     if levels is None:
         qcntset = None
@@ -135,11 +134,11 @@ def surface(
             linestyles="solid",
             offset=offset,
         )
-        ax.set_zlim(offset, ax.get_zlim()[1])
+        ax.set_zlim(offset, ax.get_zlim()[1])  # type: ignore[attr-defined]
 
     ax.fmt_xdata = "{: .2f}".format
     ax.fmt_ydata = "{: .2f}".format
-    ax.fmt_zdata = "{: .2f}".format
+    ax.fmt_zdata = "{: .2f}".format  # type: ignore[attr-defined]
 
     if title is not None:
         ax.set_title(title)
@@ -148,7 +147,7 @@ def surface(
     if ylabel is not None:
         ax.set_ylabel(ylabel, labelpad=labelpad)
     if zlabel is not None:
-        ax.set_zlabel(zlabel, labelpad=labelpad)
+        ax.set_zlabel(zlabel, labelpad=labelpad)  # type: ignore[attr-defined]
 
     if show:
         fig.show()

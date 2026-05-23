@@ -117,4 +117,4 @@ def config_notebook_plotting(backend: Optional[str] = None):
         def show_disable(self):
             pass
 
-        matplotlib.figure.Figure.show = show_disable
+        matplotlib.figure.Figure.show = show_disable  # type: ignore[method-assign, assignment]

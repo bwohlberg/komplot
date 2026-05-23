@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
-# Copyright (C) 2024-2025 by Brendt Wohlberg <brendt@ieee.org>
+# Copyright (C) 2024-2026 by Brendt Wohlberg <brendt@ieee.org>
 # All rights reserved. BSD 3-clause License.
 # This file is part of the komplot package. Details of the copyright
 # and user license can be found in the 'LICENSE.txt' file distributed
 # with the package.
 
 """Image viewer."""
-
 
 from dataclasses import dataclass
 from typing import Optional, Tuple, Union
@@ -17,14 +16,16 @@ import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.colors import Colormap, Normalize
 from matplotlib.figure import Figure
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-from mpl_toolkits.axes_grid1.axes_divider import AxesDivider
+from mpl_toolkits.axes_grid1 import make_axes_locatable  # type: ignore[import-untyped]
+from mpl_toolkits.axes_grid1.axes_divider import (
+    AxesDivider,  # type: ignore[import-untyped]
+)
 
 from ._event import ColorbarEventManager, FigureEventManager, figure_event_manager
 from ._state import ColorbarPlot, figure_and_axes
 
 try:
-    import mplcursors as mplcrs
+    import mplcursors as mplcrs  # type: ignore[import-not-found]
 except ImportError:
     HAVE_MPLCRS = False
 else:
@@ -32,7 +33,7 @@ else:
 
 
 # kw_only only supported from Python 3.10
-KW_ONLY = {"kw_only": True} if "kw_only" in dataclass.__kwdefaults__ else {}
+KW_ONLY = {"kw_only": True} if "kw_only" in (dataclass.__kwdefaults__ or {}) else {}
 
 
 @dataclass(repr=False, **KW_ONLY)
@@ -118,19 +119,23 @@ def _patch_coord_statusbar(fig: Figure):
         def patch_mouse_move(arg):
             return mouse_move(fig.canvas.toolbar, arg)
 
-        fig.canvas.toolbar._idDrag = fig.canvas.mpl_connect(  # pylint: disable=W0212
+        fig.canvas.toolbar._idDrag = fig.canvas.mpl_connect(  # type: ignore[attr-defined]  # pylint: disable=W0212
             "motion_notify_event", patch_mouse_move
         )
 
 
 def _get_axes_width(ax: Axes):
     """Get axes width."""
-    return ax.get_tightbbox().bounds[2]
+    bbox = ax.get_tightbbox()
+    assert bbox is not None
+    return bbox.bounds[2]
 
 
 def _get_axes_height(ax: Axes):
     """Get axes height."""
-    return ax.get_tightbbox().bounds[3]
+    bbox = ax.get_tightbbox()
+    assert bbox is not None
+    return bbox.bounds[3]
 
 
 def _create_colorbar(
@@ -199,15 +204,15 @@ def _image_view(
     try:
         ax.set_adjustable("box")
     except ValueError:
-        ax.set_adjustable("imagelim")
+        ax.set_adjustable("imagelim")  # type: ignore[arg-type]
 
     if cmap is None and image.ndim == 2:
-        cmap = mpl.cm.Greys_r  # pylint: disable=E1101
+        cmap = mpl.cm.Greys_r  # type: ignore[attr-defined]  # pylint: disable=E1101
 
     if imshow_kwargs is None:
         imshow_kwargs = {}
     axim = ax.imshow(
-        image, cmap=cmap, interpolation=interpolation, origin=origin, **imshow_kwargs
+        image, cmap=cmap, interpolation=interpolation, origin=origin, **imshow_kwargs  # type: ignore[arg-type]
     )
 
     if origin == "upper":
@@ -220,7 +225,7 @@ def _image_view(
     if title is not None:
         ax.set_title(title)
 
-    ax.format_coord = lambda x, y: _format_coord(x, y, image)
+    ax.format_coord = lambda x, y: _format_coord(x, y, image)  # type: ignore[method-assign]
     _patch_coord_statusbar(fig)
 
     if HAVE_MPLCRS:

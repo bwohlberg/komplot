@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright (C) 2024-2025 by Brendt Wohlberg <brendt@ieee.org>
+# Copyright (C) 2024-2026 by Brendt Wohlberg <brendt@ieee.org>
 # All rights reserved. BSD 3-clause License.
 # This file is part of the komplot package. Details of the copyright
 # and user license can be found in the 'LICENSE.txt' file distributed
@@ -7,19 +7,22 @@
 
 """Plot management classes."""
 
-
 from dataclasses import dataclass, field
-from typing import Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
-from mpl_toolkits.axes_grid1.axes_divider import AxesDivider
+from mpl_toolkits.axes_grid1.axes_divider import (
+    AxesDivider,  # type: ignore[import-untyped]
+)
 
 # kw_only only supported from Python 3.10
-KW_ONLY = {"kw_only": True} if "kw_only" in dataclass.__kwdefaults__ else {}
+KW_ONLY: Dict[str, Any] = (
+    {"kw_only": True} if "kw_only" in (dataclass.__kwdefaults__ or {}) else {}
+)
 
 
 def figure_and_axes(
@@ -47,7 +50,8 @@ def figure_and_axes(
         fig, ax = plt.subplots(subplot_kw=spkw, num=fignum, figsize=figsize)
         new_fig = True
     else:
-        fig = ax.get_figure()
+        fig = ax.get_figure()  # type: ignore[assignment]
+        assert isinstance(fig, Figure)
         if proj3d:
             # See https://stackoverflow.com/a/43563804
             #     https://stackoverflow.com/a/35221116
@@ -127,13 +131,13 @@ class ZoomablePlot(GenericPlot):
 
         # Ensure that x limit range is no larger than that of the reference
         if np.diff(new_xlim) > np.diff(self.xlim_ref):
-            new_xlim *= np.diff(self.xlim_ref) / np.diff(new_xlim)
+            new_xlim *= np.diff(self.xlim_ref) / np.diff(new_xlim)  # type: ignore[assignment]
         # Ensure that lower x limit is not less than that of the reference
         if new_xlim[0] < self.xlim_ref[0]:
-            new_xlim += np.array(self.xlim_ref[0] - new_xlim[0])
+            new_xlim += np.array(self.xlim_ref[0] - new_xlim[0])  # type: ignore[assignment]
         # Ensure that upper x limit is not greater than that of the reference
         if new_xlim[1] > self.xlim_ref[1]:
-            new_xlim -= np.array(new_xlim[1] - self.xlim_ref[1])
+            new_xlim -= np.array(new_xlim[1] - self.xlim_ref[1])  # type: ignore[assignment]
 
         # Ensure that ylim tuple has the smallest value first
         if self.ylim_ref[1] < self.ylim_ref[0]:
@@ -144,13 +148,13 @@ class ZoomablePlot(GenericPlot):
 
         # Ensure that y limit range is no larger than that of the reference
         if np.diff(new_ylim) > np.diff(ylim_ref):
-            new_ylim *= np.diff(ylim_ref) / np.diff(new_ylim)
+            new_ylim *= np.diff(ylim_ref) / np.diff(new_ylim)  # type: ignore[assignment]
         # Ensure that lower y limit is not less than that of the reference
         if new_ylim[0] < ylim_ref[0]:
-            new_ylim += np.array(ylim_ref[0] - new_ylim[0])
+            new_ylim += np.array(ylim_ref[0] - new_ylim[0])  # type: ignore[assignment]
         # Ensure that upper y limit is not greater than that of the reference
         if new_ylim[1] > ylim_ref[1]:
-            new_ylim -= np.array(new_ylim[1] - ylim_ref[1])
+            new_ylim -= np.array(new_ylim[1] - ylim_ref[1])  # type: ignore[assignment]
 
         # Return the ylim tuple to its original order
         if self.ylim_ref[1] < self.ylim_ref[0]:
@@ -191,7 +195,7 @@ class ColorbarPlot(ZoomablePlot):
 
     axesimage: mpl.image.AxesImage
     divider: AxesDivider
-    cbar_axes: Axes
+    cbar_axes: Optional[Axes]
     vmin_ref: float = field(init=False)
     vmax_ref: float = field(init=False)
 
@@ -214,6 +218,8 @@ class ColorbarPlot(ZoomablePlot):
         """
         im = self.axesimage
         abs_delta = rel_delta * (self.vmax_ref - self.vmin_ref)
+        assert im.norm.vmin is not None
+        assert im.norm.vmax is not None
         new_vmin = im.norm.vmin + abs_delta
         if new_vmin < self.vmin_ref:
             new_vmin = self.vmin_ref
@@ -233,6 +239,8 @@ class ColorbarPlot(ZoomablePlot):
         """
         im = self.axesimage
         abs_delta = rel_delta * (self.vmax_ref - self.vmin_ref)
+        assert im.norm.vmin is not None
+        assert im.norm.vmax is not None
         new_vmax = im.norm.vmax + abs_delta
         if new_vmax > self.vmax_ref:
             new_vmax = self.vmax_ref

@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import Dict, List, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -56,16 +56,17 @@ class FigureEventManager:
         self.key_pressed = {k: False for k in self.monitored_keys}
         self.slice_share_axes: List[Axes] = []
         self.cmap_share_axes: List[Axes] = []
-        self.axevman_from_ax: Dict[AxesEventManager, Axes] = {}
+        self.axevman_from_ax: Dict[Axes, AxesEventManager] = {}
 
         def key_press(event: Event):
             """Callback for key press events."""
+            assert hasattr(event, "key")
             if event.key == "q":
                 plt.close(fig)
             elif event.key == "pageup":
-                fig.set_size_inches(fig_scale * fig.get_size_inches(), forward=True)
+                fig.set_size_inches(fig_scale * fig.get_size_inches(), forward=True)  # type: ignore[arg-type]
             elif event.key == "pagedown":
-                fig.set_size_inches(fig.get_size_inches() / fig_scale, forward=True)
+                fig.set_size_inches(fig.get_size_inches() / fig_scale, forward=True)  # type: ignore[arg-type]
             elif event.key in self.monitored_keys:
                 self.key_pressed[event.key] = True
 
@@ -74,6 +75,7 @@ class FigureEventManager:
 
             If the released key is in the list of monitored keys, update
             its status record."""
+            assert hasattr(event, "key")
             if event.key in self.monitored_keys:
                 self.key_pressed[event.key] = False
 
@@ -84,12 +86,13 @@ class FigureEventManager:
             the figure since key release events will no longer be
             registered.
             """
+            assert hasattr(event, "key")
             self.key_pressed = {k: False for k in self.monitored_keys}
 
         # Attach this event manager to the figure and connect callbacks
         if hasattr(fig, "_event_manager"):
             raise RuntimeError(f"Figure {fig} already has an event manager attached.")
-        fig._event_manager = self
+        fig._event_manager = self  # type: ignore[attr-defined]
         fig.canvas.mpl_connect("key_press_event", key_press)
         fig.canvas.mpl_connect("key_release_event", key_release)
         fig.canvas.mpl_connect("figure_leave_event", figure_leave)
@@ -114,25 +117,27 @@ class FigureEventManager:
         """
         return self.axevman_from_ax.get(ax)
 
-    def set_slice_share(self, axes: Axes):
+    def set_slice_share(self, axes: Union[List[Axes], np.ndarray]):
         """Define a set of volume slice sharing axes.
 
         Args:
             axes: List of axes.
         """
         if isinstance(axes, np.ndarray):
-            axes = axes.ravel().tolist()
-        self.slice_share_axes = axes
+            self.slice_share_axes = axes.ravel().tolist()
+        else:
+            self.slice_share_axes = list(axes)
 
-    def set_cmap_share(self, axes: Axes):
+    def set_cmap_share(self, axes: Union[List[Axes], np.ndarray]):
         """Define a set of colormap sharing axes.
 
         Args:
             axes: List of axes.
         """
         if isinstance(axes, np.ndarray):
-            axes = axes.ravel().tolist()
-        self.cmap_share_axes = axes
+            self.cmap_share_axes = axes.ravel().tolist()
+        else:
+            self.cmap_share_axes = list(axes)
 
     @staticmethod
     def attached_manager(fig: Figure, error: bool = False):
@@ -148,7 +153,7 @@ class FigureEventManager:
                 manager attached.
         """
         if hasattr(fig, "_event_manager"):
-            return fig._event_manager  # pylint: disable=W0212
+            return fig._event_manager  # type: ignore[attr-defined]  # pylint: disable=W0212
         if error:
             raise RuntimeError(f"Figure {fig} has no attached FigureEventManager.")
         return None
@@ -192,11 +197,11 @@ class AxesEventManager:
 
         # See https://github.com/matplotlib/ipympl/issues/240 and
         #     https://github.com/matplotlib/ipympl/pull/235
-        fig_event_man.fig.canvas.capture_scroll = True
+        fig_event_man.fig.canvas.capture_scroll = True  # type: ignore[attr-defined]
 
         if hasattr(axes, "_event_manager"):
             raise RuntimeError(f"Axes {axes} already has an event manager attached.")
-        axes._event_manager = self
+        axes._event_manager = self  # type: ignore[attr-defined]
 
 
 class ZoomEventManager(AxesEventManager):
@@ -233,12 +238,18 @@ class ZoomEventManager(AxesEventManager):
 
     def scroll_event_handler(self, event: Event):
         """Calback for mouse scroll events."""
+        assert hasattr(event, "inaxes") and hasattr(event, "axes")
         if event.inaxes == self.axes:
             if not any(self.fig_event_man.key_pressed.values()):  # zoom
                 self.zoom_event_handler(event)
 
     def zoom_event_handler(self, event: Event):
         """Handle axes zoom event."""
+        assert (
+            hasattr(event, "button")
+            and hasattr(event, "xdata")
+            and hasattr(event, "ydata")
+        )
         if event.button == "up":  # Deal with zoom in
             scale_factor = 1.0 / self.zoom_scale
         elif event.button == "down":  # Deal with zoom out
@@ -289,6 +300,7 @@ class ColorbarEventManager(ZoomEventManager):
 
     def scroll_event_handler(self, event: Event):
         """Calback for mouse scroll events."""
+        assert hasattr(event, "inaxes")
         if event.inaxes == self.plot.cbar_axes:  # cmap range change
             rel_pos = self.cbar_event_rel_pos(event)
             if self.fig_event_man.cmap_share_axes:
@@ -302,11 +314,12 @@ class ColorbarEventManager(ZoomEventManager):
 
     def cbar_event_rel_pos(self, event: Event):
         """Determine relative position of event in a colorbar."""
+        assert hasattr(event, "inaxes") and hasattr(event, "x") and hasattr(event, "y")
         if self.plot.cbar_axes is None or event.inaxes != self.plot.cbar_axes:
             return None
         box = self.plot.cbar_axes.get_window_extent().bounds
         if (
-            self.plot.cbar_axes._colorbar.orientation  # pylint: disable=W0212
+            self.plot.cbar_axes._colorbar.orientation  # type: ignore[attr-defined]  # pylint: disable=W0212
             == "vertical"
         ):
             rel_pos = (event.y - box[1]) / box[3]
