@@ -225,7 +225,10 @@ def _image_view(
     if title is not None:
         ax.set_title(title)
 
-    ax.format_coord = lambda x, y: _format_coord(x, y, image)  # type: ignore[method-assign]
+    def _fmt_crd(x, y):
+        return _format_coord(x, y, axim.get_array().data)
+
+    ax.format_coord = _fmt_crd  # type: ignore[method-assign]
     _patch_coord_statusbar(fig)
 
     if HAVE_MPLCRS:
