@@ -15,7 +15,7 @@ import functools
 import sys
 from importlib.metadata import PackageNotFoundError, version
 
-from matplotlib import cm, colors, rcParams
+from matplotlib import cm, colors, gridspec, rcParams, ticker
 from matplotlib.pyplot import figure, gca, gcf, savefig, subplot, subplots
 
 # isort: off
