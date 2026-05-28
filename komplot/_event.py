@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright (C) 2024 by Brendt Wohlberg <brendt@ieee.org>
+# Copyright (C) 2024-2026 by Brendt Wohlberg <brendt@ieee.org>
 # All rights reserved. BSD 3-clause License.
 # This file is part of the komplot package. Details of the copyright
 # and user license can be found in the 'LICENSE.txt' file distributed
@@ -86,7 +86,6 @@ class FigureEventManager:
             the figure since key release events will no longer be
             registered.
             """
-            assert hasattr(event, "key")
             self.key_pressed = {k: False for k in self.monitored_keys}
 
         # Attach this event manager to the figure and connect callbacks
