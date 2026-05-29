@@ -3,7 +3,7 @@ KomPlot Release Notes
 =====================
 
 
-Version 0.0.2   (202x-xx-xx)
+Version 0.0.2   (2026-05-28)
 ----------------------------
 
 • Bug and typing fixes.
