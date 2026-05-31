@@ -3,10 +3,10 @@ KomPlot Release Notes
 =====================
 
 
-Version 0.0.3   (xxxx-xx-xx)
+Version 0.0.3   (2026-05-31)
 ----------------------------
 
-• No changes yet
+• Fix bug in event handling.
 
 
 Version 0.0.2   (2026-05-28)
