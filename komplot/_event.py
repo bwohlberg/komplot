@@ -237,7 +237,7 @@ class ZoomEventManager(AxesEventManager):
 
     def scroll_event_handler(self, event: Event):
         """Calback for mouse scroll events."""
-        assert hasattr(event, "inaxes") and hasattr(event, "axes")
+        assert hasattr(event, "inaxes")
         if event.inaxes == self.axes:
             if not any(self.fig_event_man.key_pressed.values()):  # zoom
                 self.zoom_event_handler(event)
