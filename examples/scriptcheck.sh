@@ -57,8 +57,8 @@ re="s/input\(/#input\(/g; "
 for f in $SCRIPTPATH/*.py; do
     printf "%-50s " $(basename $f)
 
-    # Create temporary copy of script with all algorithm maxiter values set
-    # to small number and final input statements commented out.
+    # Create temporary copy of script with final input statements
+    # commented out.
     g=$d/$(basename $f)
     sed -E -e "$re" $f > $g
 
