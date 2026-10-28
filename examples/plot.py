@@ -12,9 +12,9 @@ y3 = x**2
 
 
 """
-Plot the three functions on the same axes.
+Plot the three functions on the same axes. Note that the function kplt.plot_ discards its return value, while kplt.plot does not. Both are used here as a test that both versions function correctly.
 """
-kplt.plot(
+kplt.plot_(
     x,
     np.stack((y1, y2, y3)).T,
     xlabel="x",
