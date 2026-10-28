@@ -99,9 +99,9 @@ def _discard_return(func, name):
 
     wrapper.__name__ = name
     wrapper.__qualname__ = name
-    attr = "__annotate__" if hasattr(func, "__annotate__") else "__annotations__"
-    setattr(wrapper, attr, getattr(func, attr).copy())
-    del getattr(wrapper, attr)["return"]
+    if hasattr(func, "__annotations__"):
+        wrapper.__annotations__ = func.__annotations__.copy()
+        del wrapper.__annotations__["return"]
     if hasattr(func, "__type_params__"):
         wrapper.__type_params__ = func.__type_params__
     docs = func.__doc__.split("\n")
