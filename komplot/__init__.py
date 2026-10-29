@@ -41,7 +41,7 @@ from ._ipython import (
 )
 from ._version import local_version_label
 
-_public_version = "0.0.4"
+_public_version = "0.0.5rc1"
 
 
 def _package_version():
