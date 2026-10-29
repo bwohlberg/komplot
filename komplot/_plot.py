@@ -8,7 +8,7 @@
 """Point/line plotting."""
 
 from dataclasses import dataclass
-from typing import List, Optional, Sequence, Tuple
+from typing import List, Literal, Optional, Sequence, Tuple, Union
 
 import matplotlib as mpl
 from matplotlib.axes import Axes
@@ -42,6 +42,26 @@ class LinePlot(ZoomablePlot):
     line2d: List[mpl.lines.Line2D]
 
 
+LegendLocType = Union[
+    Literal[
+        "best",
+        "upper right",
+        "upper left",
+        "lower left",
+        "lower right",
+        "right",
+        "center left",
+        "center right",
+        "lower center",
+        "upper center",
+        "center",
+    ],
+    Literal[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    Tuple[float, float],
+    None,
+]
+
+
 def plot(
     *args,
     xlog: bool = False,
@@ -50,7 +70,7 @@ def plot(
     ylabel: Optional[str] = None,
     title: Optional[str] = None,
     legend: Optional[Sequence[str]] = None,
-    legend_loc: Optional[str] = None,
+    legend_loc: LegendLocType = None,
     figsize: Optional[Tuple[int, int]] = None,
     fignum: Optional[int] = None,
     ax: Optional[Axes] = None,

@@ -218,13 +218,13 @@ class ColorbarPlot(ZoomablePlot):
         """
         im = self.axesimage
         abs_delta = rel_delta * (self.vmax_ref - self.vmin_ref)
-        assert im.norm.vmin is not None
-        assert im.norm.vmax is not None
+        assert isinstance(im.norm.vmin, float)
+        assert isinstance(im.norm.vmax, float)
         new_vmin = im.norm.vmin + abs_delta
         if new_vmin < self.vmin_ref:
             new_vmin = self.vmin_ref
         if new_vmin < im.norm.vmax:
-            im.norm.vmin = new_vmin
+            im.set_clim(vmin=new_vmin)
         self.axes.figure.canvas.draw_idle()
 
         msg = f"Color map vmin set to {im.norm.vmin:.1f}"
@@ -239,13 +239,13 @@ class ColorbarPlot(ZoomablePlot):
         """
         im = self.axesimage
         abs_delta = rel_delta * (self.vmax_ref - self.vmin_ref)
-        assert im.norm.vmin is not None
-        assert im.norm.vmax is not None
+        assert isinstance(im.norm.vmin, float)
+        assert isinstance(im.norm.vmax, float)
         new_vmax = im.norm.vmax + abs_delta
         if new_vmax > self.vmax_ref:
             new_vmax = self.vmax_ref
         if new_vmax > im.norm.vmin:
-            im.norm.vmax = new_vmax
+            im.set_clim(vmax=new_vmax)
         self.axes.figure.canvas.draw_idle()
 
         msg = f"Color map vmax set to {im.norm.vmax:.1f}"
