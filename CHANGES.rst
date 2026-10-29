@@ -3,7 +3,7 @@ KomPlot Release Notes
 =====================
 
 
-Version 0.0.4   (xxx-xx-xx)
+Version 0.0.4   (2026-10-29)
 ----------------------------
 
 • Fix bug in plot function return value discard mechanism.
