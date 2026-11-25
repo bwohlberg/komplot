@@ -6,7 +6,14 @@ KomPlot Release Notes
 Version 0.0.5   (xxxx-xx-xx)
 ----------------------------
 
-• No changes yet
+• Add test suite.
+• Fix bug in handling of log scale properties of plot function. Log scale
+  properties of the plot and contour functions are now specified by passing
+  a dict of keyword arguments as parameter xlog or ylog, allowing distinct
+  properties for each axis.
+• Fix bug in handling of cmap_delta parameter of ImageViewEventManager and
+  VolumeViewEventManager.
+• Increase minimum supported Python version to 3.11.
 
 
 Version 0.0.4   (2026-10-29)

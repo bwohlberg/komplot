@@ -22,19 +22,8 @@ from mpl_toolkits.axes_grid1.axes_divider import (
 from ._event import FigureEventManager, figure_event_manager
 from ._imview import ImageView, ImageViewEventManager, _image_view
 
-try:
-    pass
-except ImportError:
-    HAVE_MPLCRS = False
-else:
-    HAVE_MPLCRS = True
 
-
-# kw_only only supported from Python 3.10
-KW_ONLY = {"kw_only": True} if "kw_only" in (dataclass.__kwdefaults__ or {}) else {}
-
-
-@dataclass(repr=False, **KW_ONLY)
+@dataclass(repr=False, kw_only=True)
 class VolumeView(ImageView):
     """State of volview plot.
 
@@ -128,7 +117,13 @@ class VolumeViewEventManager(ImageViewEventManager):
             zoom_scale: Scaling factor for mouse wheel zoom.
             cmap_delta: Fraction of colormap range for vmin/vmax shifts.
         """
-        super().__init__(axes, fig_event_man, iview, zoom_scale=zoom_scale)
+        super().__init__(
+            axes,
+            fig_event_man,
+            iview,
+            zoom_scale=zoom_scale,
+            cmap_delta=cmap_delta,
+        )
         if iview.slider is not None:
             iview.slider.on_changed(lambda val: self.slider_event_handler(int(val)))
 

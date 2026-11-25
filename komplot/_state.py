@@ -8,7 +8,7 @@
 """Plot management classes."""
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, Union
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -19,10 +19,25 @@ from mpl_toolkits.axes_grid1.axes_divider import (
     AxesDivider,  # type: ignore[import-untyped]
 )
 
-# kw_only only supported from Python 3.10
-KW_ONLY: Dict[str, Any] = (
-    {"kw_only": True} if "kw_only" in (dataclass.__kwdefaults__ or {}) else {}
-)
+LogScaleType = Union[bool, Dict[str, Any]]
+
+
+def log_scale_kwargs(log: LogScaleType) -> Optional[Dict[str, Any]]:
+    """Convert a log scale specification to axis scale keyword arguments.
+
+    Args:
+        log: A bool specifying whether to use a log scale, or a dict of
+           keyword arguments for :meth:`~matplotlib.axes.Axes.set_xscale`
+           or :meth:`~matplotlib.axes.Axes.set_yscale`, which also
+           implies the use of a log scale.
+
+    Returns:
+        A dict of axis scale keyword arguments if a log scale is
+        required, otherwise ``None``.
+    """
+    if isinstance(log, dict):
+        return log
+    return {} if log else None
 
 
 def figure_and_axes(
@@ -62,7 +77,7 @@ def figure_and_axes(
     return fig, ax, new_fig
 
 
-@dataclass(repr=False, **KW_ONLY)
+@dataclass(repr=False, kw_only=True)
 class GenericPlot:
     """Generic plot state.
 
@@ -84,7 +99,7 @@ class GenericPlot:
             self.axes.figure.canvas.toolbar.set_message(msg)
 
 
-@dataclass(repr=False, **KW_ONLY)
+@dataclass(repr=False, kw_only=True)
 class ZoomablePlot(GenericPlot):
     """State for a plot supporting axis zoom.
 
@@ -179,7 +194,7 @@ class ZoomablePlot(GenericPlot):
         self.toolbar_message(msg)
 
 
-@dataclass(repr=False, **KW_ONLY)
+@dataclass(repr=False, kw_only=True)
 class ColorbarPlot(ZoomablePlot):
     """State of plot supporting axis zoom and a colorbar.
 

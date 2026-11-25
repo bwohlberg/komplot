@@ -19,7 +19,7 @@ classifiers = [
     'Intended Audience :: Developers',
     'Topic :: Utilities'
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 dependencies = [
     "matplotlib",
     "numpy",
@@ -31,6 +31,7 @@ version_callback = "komplot:_package_version"
 
 [project.optional-dependencies]
 examples = ["imageio", "ipympl"]
+tests = ["pytest"]
 docs = [
      "imageio",
      "ipympl",
@@ -53,3 +54,11 @@ source = "https://github.com/bwohlberg/komplot"
 
 [tool.isort]
 profile = "black"
+
+[tool.pytest.ini_options]
+testpaths = ["test"]
+filterwarnings = [
+    # Raised by calls to Figure.show under the non-interactive Agg backend
+    # used when running the tests
+    "ignore:FigureCanvasAgg is non-interactive:UserWarning",
+]

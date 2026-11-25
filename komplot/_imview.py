@@ -32,11 +32,7 @@ else:
     HAVE_MPLCRS = True
 
 
-# kw_only only supported from Python 3.10
-KW_ONLY = {"kw_only": True} if "kw_only" in (dataclass.__kwdefaults__ or {}) else {}
-
-
-@dataclass(repr=False, **KW_ONLY)
+@dataclass(repr=False, kw_only=True)
 class ImageView(ColorbarPlot):
     """State of imview plot.
 
@@ -86,7 +82,13 @@ class ImageViewEventManager(ColorbarEventManager):
             zoom_scale: Scaling factor for mouse wheel zoom.
             cmap_delta: Fraction of colormap range for vmin/vmax shifts.
         """
-        super().__init__(axes, fig_event_man, iview, zoom_scale=zoom_scale)
+        super().__init__(
+            axes,
+            fig_event_man,
+            iview,
+            zoom_scale=zoom_scale,
+            cmap_delta=cmap_delta,
+        )
 
 
 def _format_coord(x: float, y: float, image: np.ndarray) -> str:
@@ -124,20 +126,6 @@ def _patch_coord_statusbar(fig: Figure):
         )
 
 
-def _get_axes_width(ax: Axes):
-    """Get axes width."""
-    bbox = ax.get_tightbbox()
-    assert bbox is not None
-    return bbox.bounds[2]
-
-
-def _get_axes_height(ax: Axes):
-    """Get axes height."""
-    bbox = ax.get_tightbbox()
-    assert bbox is not None
-    return bbox.bounds[3]
-
-
 def _create_colorbar(
     ax: Axes,
     axim: mpl.image.AxesImage,
@@ -156,10 +144,7 @@ def _create_colorbar(
         plt.colorbar(axim, ax=ax, cax=cax, orientation=orient)
     else:
         # See http://chris35wills.github.io/matplotlib_axis
-        if hasattr(cax, "set_facecolor"):
-            cax.set_facecolor("none")
-        else:
-            cax.set_axis_bgcolor("none")
+        cax.set_facecolor("none")
         for axis in ["top", "bottom", "left", "right"]:
             cax.spines[axis].set_linewidth(0)
         cax.set_xticks([])

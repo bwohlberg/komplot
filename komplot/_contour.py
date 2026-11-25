@@ -18,13 +18,10 @@ from matplotlib.colors import Colormap
 from mpl_toolkits.axes_grid1 import make_axes_locatable  # type: ignore[import-untyped]
 
 from ._event import ColorbarEventManager, FigureEventManager, figure_event_manager
-from ._state import ColorbarPlot, figure_and_axes
-
-# kw_only only supported from Python 3.10
-KW_ONLY = {"kw_only": True} if "kw_only" in (dataclass.__kwdefaults__ or {}) else {}
+from ._state import ColorbarPlot, LogScaleType, figure_and_axes, log_scale_kwargs
 
 
-@dataclass(repr=False, **KW_ONLY)
+@dataclass(repr=False, kw_only=True)
 class ContourPlot(ColorbarPlot):
     """State of contour plot.
 
@@ -48,8 +45,8 @@ def contour(
     x: Optional[np.ndarray] = None,
     y: Optional[np.ndarray] = None,
     *,
-    xlog: bool = False,
-    ylog: bool = False,
+    xlog: LogScaleType = False,
+    ylog: LogScaleType = False,
     levels: Union[int, Sequence[float]] = 5,
     clabel_inline: bool = True,
     clabel_format: Optional[str] = None,
@@ -84,8 +81,16 @@ def contour(
         z: Contour data 2d array to plot.
         x: Values for x-axis of the plot.
         y: Values for y-axis of the plot.
-        xlog: Set x-axis to log scale.
-        ylog: Set y-axis to log scale.
+        xlog: Set x-axis to log scale if ``True``. Properties of the log
+            scale axis, such as :code:`base`, :code:`subs`, and
+            :code:`nonpositive`, may be specified by passing a dict of
+            keyword arguments for
+            :meth:`~matplotlib.axes.Axes.set_xscale` instead of a bool,
+            which also implies the use of a log scale.
+        ylog: Set y-axis to log scale if ``True``. Properties of the log
+            scale axis may be specified by passing a dict of keyword
+            arguments for :meth:`~matplotlib.axes.Axes.set_yscale`
+            instead of a bool, as for parameter :code:`xlog`.
         levels: An int specifying the number of contours to plot, or a
             sequence specifying the specific contour levels to plot.
         clabel_inline: Value of parameter :code:`inline` of
@@ -115,10 +120,12 @@ def contour(
     """
     fig, ax, show = figure_and_axes(ax, figsize=figsize, fignum=fignum)
 
-    if xlog:
-        ax.set_xscale("log")
-    if ylog:
-        ax.set_yscale("log")
+    xlog_kwargs = log_scale_kwargs(xlog)
+    if xlog_kwargs is not None:
+        ax.set_xscale("log", **xlog_kwargs)
+    ylog_kwargs = log_scale_kwargs(ylog)
+    if ylog_kwargs is not None:
+        ax.set_yscale("log", **ylog_kwargs)
 
     if cmap is None:
         cmap = mpl.cm.YlOrRd  # type: ignore[attr-defined]  # pylint: disable=E1101
@@ -148,8 +155,8 @@ def contour(
         clim=(vmin, vmax),
     )
 
-    ax.fmt_xdata = "{: .2e}".format if xlog else "{: .2f}".format
-    ax.fmt_ydata = "{: .2e}".format if ylog else "{: .2f}".format
+    ax.fmt_xdata = "{: .2e}".format if xlog_kwargs is not None else "{: .2f}".format
+    ax.fmt_ydata = "{: .2e}".format if ylog_kwargs is not None else "{: .2f}".format
 
     if title is not None:
         ax.set_title(title)
