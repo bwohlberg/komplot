@@ -11,7 +11,6 @@ Alternative high-level interface to selected :mod:`matplotlib`
 plotting functions.
 """
 
-import functools
 import sys
 from importlib.metadata import PackageNotFoundError, version
 

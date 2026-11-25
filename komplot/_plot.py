@@ -14,7 +14,7 @@ import matplotlib as mpl
 from matplotlib.axes import Axes
 
 from ._event import FigureEventManager, ZoomEventManager, figure_event_manager
-from ._state import ZoomablePlot, figure_and_axes
+from ._state import LogScaleType, ZoomablePlot, figure_and_axes, log_scale_kwargs
 
 try:
     import mplcursors as mplcrs  # type: ignore[import-not-found]
@@ -24,11 +24,7 @@ else:
     HAVE_MPLCRS = True
 
 
-# kw_only only supported from Python 3.10
-KW_ONLY = {"kw_only": True} if "kw_only" in (dataclass.__kwdefaults__ or {}) else {}
-
-
-@dataclass(repr=False, **KW_ONLY)
+@dataclass(repr=False, kw_only=True)
 class LinePlot(ZoomablePlot):
     """State of 2d line/point plot.
 
@@ -64,8 +60,8 @@ LegendLocType = Union[
 
 def plot(
     *args,
-    xlog: bool = False,
-    ylog: bool = False,
+    xlog: LogScaleType = False,
+    ylog: LogScaleType = False,
     xlabel: Optional[str] = None,
     ylabel: Optional[str] = None,
     title: Optional[str] = None,
@@ -94,8 +90,16 @@ def plot(
         *args: Plot specification in form :code:`[x], y, [fmt],` etc.
             corresponding to the signature of
             :meth:`~matplotlib.axes.Axes.plot`.
-        xlog: Set x axis to log scale if ``True``.
-        ylog: Set y axis to log scale if ``True``.
+        xlog: Set x axis to log scale if ``True``. Properties of the log
+            scale axis, such as :code:`base`, :code:`subs`, and
+            :code:`nonpositive`, may be specified by passing a dict of
+            keyword arguments for
+            :meth:`~matplotlib.axes.Axes.set_xscale` instead of a bool,
+            which also implies the use of a log scale.
+        ylog: Set y axis to log scale if ``True``. Properties of the log
+            scale axis may be specified by passing a dict of keyword
+            arguments for :meth:`~matplotlib.axes.Axes.set_yscale`
+            instead of a bool, as for parameter :code:`xlog`.
         xlabel: Label for x-axis.
         ylabel: Label for y-axis.
         title: Figure title.
@@ -110,15 +114,7 @@ def plot(
             :meth:`~matplotlib.axes.Axes.plot` are supported, such as
             those specifying :class:`~matplotlib.lines.Line2D` properties
             (if not specified, the defaults for line width (:code:`lw`)
-            and marker size (:code:`ms`) are 1.5 and 6.0 respectively),
-            as well as the following additional keyword arguments.
-            When parameters :code:`xlog` or :code:`ylog` are specified,
-            additional properties of the log-scale axes may be specified
-            via parameters  :code:`base`, :code:`subs`,
-            :code:`nonpositive`, :code:`basex`, :code:`subsx`,
-            :code:`nonposx`, :code:`basey`, :code:`subsy`, and
-            :code:`nonposy`, supported by
-            :meth:`~matplotlib.axes.Axes.loglog`.
+            and marker size (:code:`ms`) are 1.5 and 6.0 respectively).
 
     Returns:
         Line/point plot state object.
@@ -131,23 +127,12 @@ def plot(
     if "ms" not in kwargs and "markersize" not in kwargs:
         kwargs["ms"] = 6.0
 
-    # See implementation of matplotlib.axes.Axes.loglog
-    kwxy = {}
-    for k in kwargs:
-        if k in ["base", "subs", "nonpositive"]:
-            kwxy[k] = kwargs.pop(k)
-    kwx = {}
-    for k in kwargs:
-        if k in ["basex", "subsx", "nonposx"]:
-            kwx[k] = kwargs.pop(k)
-    kwy = {}
-    for k in kwargs:
-        if k in ["basey", "subsy", "nonposy"]:
-            kwy[k] = kwargs.pop(k)
-    if xlog:
-        ax.set_xscale("log", **{**kwxy, **kwx})
-    if ylog:
-        ax.set_yscale("log", **{**kwxy, **kwy})
+    xlog_kwargs = log_scale_kwargs(xlog)
+    if xlog_kwargs is not None:
+        ax.set_xscale("log", **xlog_kwargs)
+    ylog_kwargs = log_scale_kwargs(ylog)
+    if ylog_kwargs is not None:
+        ax.set_yscale("log", **ylog_kwargs)
 
     line2d = ax.plot(*args, **kwargs)
 

@@ -9,7 +9,6 @@
 
 import importlib.util
 import os
-import sys
 from typing import Optional
 
 HAVE_IPYMPL = bool(importlib.util.find_spec("ipympl"))
@@ -101,7 +100,6 @@ def config_notebook_plotting(backend: Optional[str] = None):
             :func:`set_notebook_plot_backend`.
     """
     # Check whether running within a notebook shell
-    module = sys.modules[__name__.split(".")[0]]
     if _in_notebook():
         # Set backend if specified by environment variable
         if "MATPLOTLIB_IPYNB_BACKEND" in os.environ:
