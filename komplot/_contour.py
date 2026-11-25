@@ -132,7 +132,12 @@ class ContourPlot(ColorbarMixin, ZoomMixin, Plot):
         cax = divider.append_axes("right", size="5%", pad=0.2)
         plt.colorbar(qmesh, ax=axs, cax=cax)
 
-        self.init_colorbar(qmesh, divider=divider, cbar_axes=cax)  # type: ignore[arg-type]
+        self.init_colorbar(
+            qmesh,  # type: ignore[arg-type]
+            divider=divider,
+            cbar_axes=cax,
+            cbar_orient="vertical",
+        )
         self.init_zoom()
         self.show_new_figure()
 

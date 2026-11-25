@@ -363,6 +363,11 @@ class ColorbarMixin:
            used to create axes for the colorbar.
         cbar_axes: The axes of the colorbar, or ``None`` if there is no
            colorbar.
+        cbar_orient: Orientation of the colorbar, "vertical" or
+           "horizontal", or ``None`` if there is no colorbar.
+        cbar_visible: ``True`` if the colorbar is visible. An invisible
+           colorbar, created to maintain consistent image size within a
+           figure, does not respond to mouse scroll events.
         cmap_delta: Fraction of colormap range for vmin/vmax shifts.
         vmin_ref: Reference colormap :code:`vmin`.
         vmax_ref: Reference colormap :code:`vmax`.
@@ -371,6 +376,8 @@ class ColorbarMixin:
     axesimage: mpl.image.AxesImage
     divider: Optional[AxesDivider]
     cbar_axes: Optional[Axes]
+    cbar_orient: Optional[str] = None
+    cbar_visible: bool = False
     cmap_delta: float
     vmin_ref: float
     vmax_ref: float
@@ -381,6 +388,8 @@ class ColorbarMixin:
         axesimage: mpl.image.AxesImage,
         divider: Optional[AxesDivider] = None,
         cbar_axes: Optional[Axes] = None,
+        cbar_orient: Optional[str] = None,
+        cbar_visible: bool = True,
         cmap_delta: float = 0.02,
     ):
         """Initialize colorbar support.
@@ -394,16 +403,36 @@ class ColorbarMixin:
             divider: The axes divider used to create axes for the
                colorbar.
             cbar_axes: The axes of the colorbar.
+            cbar_orient: Orientation of the colorbar, "vertical" or
+               "horizontal". If :code:`cbar_axes` is specified and this
+               is not, the matplotlib default of "vertical" is assumed.
+            cbar_visible: Flag indicating whether the colorbar is
+               visible.
             cmap_delta: Fraction of colormap range for vmin/vmax shifts.
         """
         self.axesimage = axesimage
         self.divider = divider
         self.cbar_axes = cbar_axes
+        if cbar_axes is None:
+            self.cbar_orient = None
+        else:
+            self.cbar_orient = "vertical" if cbar_orient is None else cbar_orient
+        self.cbar_visible = cbar_visible and cbar_axes is not None
         self.cmap_delta = cmap_delta
-        vmin, vmax = axesimage.norm.vmin, axesimage.norm.vmax
-        assert vmin is not None and vmax is not None
-        self.vmin_ref, self.vmax_ref = float(vmin), float(vmax)
+        self.vmin_ref, self.vmax_ref = self.cmap_limits
         self._cmap_group = None
+
+    @property
+    def cmap_limits(self) -> Tuple[float, float]:
+        """The current colormap limits, as a tuple (`vmin`, `vmax`).
+
+        The limits are returned as floats, whatever the type with which
+        matplotlib recorded them: they are integers when matplotlib
+        determines them by autoscaling an array of integer type.
+        """
+        vmin, vmax = self.axesimage.norm.vmin, self.axesimage.norm.vmax
+        assert vmin is not None and vmax is not None
+        return float(vmin), float(vmax)
 
     @property
     def cmap_group(self) -> Optional[ShareGroup]:
@@ -453,17 +482,16 @@ class ColorbarMixin:
 
         Returns:
             Position of the event within the colorbar, as a fraction of
-            its extent, or ``None`` if the event did not occur in the
-            colorbar.
+            its extent, or ``None`` if the event did not occur in a
+            visible colorbar.
         """
         assert hasattr(event, "inaxes") and hasattr(event, "x") and hasattr(event, "y")
-        if self.cbar_axes is None or event.inaxes is not self.cbar_axes:
+        if self.cbar_axes is None or not self.cbar_visible:
+            return None
+        if event.inaxes is not self.cbar_axes:
             return None
         box = self.cbar_axes.get_window_extent().bounds
-        if (
-            self.cbar_axes._colorbar.orientation  # type: ignore[attr-defined]  # pylint: disable=W0212
-            == "vertical"
-        ):
+        if self.cbar_orient == "vertical":
             rel_pos = (event.y - box[1]) / box[3]
         else:
             rel_pos = (event.x - box[0]) / box[2]
@@ -517,18 +545,16 @@ class ColorbarMixin:
             rel_delta: Signed relative change in colormap :code:`vmin`
                 value.
         """
-        im = self.axesimage
+        vmin, vmax = self.cmap_limits
         abs_delta = rel_delta * (self.vmax_ref - self.vmin_ref)
-        assert isinstance(im.norm.vmin, float)
-        assert isinstance(im.norm.vmax, float)
-        new_vmin = im.norm.vmin + abs_delta
+        new_vmin = vmin + abs_delta
         if new_vmin < self.vmin_ref:
             new_vmin = self.vmin_ref
-        if new_vmin < im.norm.vmax:
-            im.set_clim(vmin=new_vmin)
+        if new_vmin < vmax:
+            self.axesimage.set_clim(vmin=new_vmin)
         self.axes.figure.canvas.draw_idle()  # type: ignore[attr-defined]
 
-        msg = f"Color map vmin set to {im.norm.vmin:.1f}"
+        msg = f"Color map vmin set to {self.cmap_limits[0]:.1f}"
         self.toolbar_message(msg)  # type: ignore[attr-defined]
 
     def apply_cmap_vmax(self, rel_delta: float):
@@ -541,18 +567,16 @@ class ColorbarMixin:
             rel_delta: Signed relative change in colormap :code:`vmax`
                 value.
         """
-        im = self.axesimage
+        vmin, vmax = self.cmap_limits
         abs_delta = rel_delta * (self.vmax_ref - self.vmin_ref)
-        assert isinstance(im.norm.vmin, float)
-        assert isinstance(im.norm.vmax, float)
-        new_vmax = im.norm.vmax + abs_delta
+        new_vmax = vmax + abs_delta
         if new_vmax > self.vmax_ref:
             new_vmax = self.vmax_ref
-        if new_vmax > im.norm.vmin:
-            im.set_clim(vmax=new_vmax)
+        if new_vmax > vmin:
+            self.axesimage.set_clim(vmax=new_vmax)
         self.axes.figure.canvas.draw_idle()  # type: ignore[attr-defined]
 
-        msg = f"Color map vmax set to {im.norm.vmax:.1f}"
+        msg = f"Color map vmax set to {self.cmap_limits[1]:.1f}"
         self.toolbar_message(msg)  # type: ignore[attr-defined]
 
 

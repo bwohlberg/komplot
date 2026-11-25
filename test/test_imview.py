@@ -12,7 +12,7 @@ from types import SimpleNamespace
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
-from conftest import move_mouse
+from conftest import move_mouse, scroll_in_axes
 from matplotlib.axes import Axes
 from matplotlib.colors import LogNorm
 from mpl_toolkits.axes_grid1.axes_divider import AxesDivider
@@ -212,6 +212,29 @@ class TestImview:
         assert iview.axes is ax[0]
         assert iview.figure is fig
         assert plt.get_fignums() == [fig.number]
+
+    @pytest.mark.parametrize(
+        "show_cbar,visible", [(True, True), (None, False), (False, False)]
+    )
+    def test_colorbar_visibility(self, image, show_cbar, visible):
+        """Colorbar visibility should be recorded."""
+        iview = kplt.imview(image, show_cbar=show_cbar)
+        assert iview.cbar_visible is visible
+        assert (iview.cbar_axes is not None) == (show_cbar is not False)
+        assert (iview.cbar_orient is None) == (show_cbar is False)
+
+    @pytest.mark.parametrize("show_cbar", [True, None])
+    def test_colorbar_orientation(self, image, wide_image, show_cbar):
+        """Colorbar orientation should be determined by the image shape."""
+        assert kplt.imview(image, show_cbar=show_cbar).cbar_orient == "vertical"
+        assert kplt.imview(wide_image, show_cbar=show_cbar).cbar_orient == "horizontal"
+
+    def test_invisible_colorbar_scroll(self, image):
+        """An invisible colorbar should not respond to a scroll event."""
+        iview = kplt.imview(image, show_cbar=None)
+        scroll_in_axes(iview.cbar_axes, 0.5, 0.25, button="up")
+        scroll_in_axes(iview.cbar_axes, 0.5, 0.75, button="down")
+        assert iview.cmap_limits == (iview.vmin_ref, iview.vmax_ref)
 
     def test_event_manager(self, image):
         """The plot should be registered with the figure event manager."""

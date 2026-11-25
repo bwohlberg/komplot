@@ -52,6 +52,28 @@ class ColorbarTestPlot(ColorbarMixin, ZoomMixin, Plot):
         self.init_zoom()
 
 
+class AutoscaledColorbarTestPlot(ColorbarMixin, ZoomMixin, Plot):
+    """A plot type with colormap limits determined by matplotlib.
+
+    The colormap limits are determined by matplotlib autoscaling, which
+    records them as integers when the displayed array is of integer
+    type.
+    """
+
+    def __init__(self, image):
+        """Display an image with a colorbar, without specifying limits."""
+        fig, ax = plt.subplots()
+        super().__init__(figure=fig, axes=ax)
+        axesimage = ax.imshow(image)
+        divider = make_axes_locatable(ax)
+        cbar_axes = divider.append_axes("right", size="5%", pad=0.2)
+        plt.colorbar(axesimage, ax=ax, cax=cbar_axes)
+        self.init_colorbar(
+            axesimage, divider=divider, cbar_axes=cbar_axes, cbar_orient="vertical"
+        )
+        self.init_zoom()
+
+
 class TestLogScaleKwargs:
     """Tests for function log_scale_kwargs."""
 
@@ -428,6 +450,55 @@ class TestColorbarMixin:
         cbplot.apply_cmap_vmax(-0.25)
         assert cbplot.axesimage.norm.vmax == pytest.approx(
             cbplot.vmax_ref - 0.25 * vrange
+        )
+
+    def test_colorbar_orientation_and_visibility(self, image):
+        """The colorbar orientation and visibility should be recorded."""
+        cbplot = ColorbarTestPlot(image)
+        assert cbplot.cbar_orient == "vertical"
+        assert cbplot.cbar_visible
+
+    def test_invisible_colorbar_not_adjusted(self, image):
+        """An invisible colorbar should not respond to a scroll event."""
+        cbplot = ColorbarTestPlot(image)
+        cbplot.cbar_visible = False
+        scroll_in_axes(cbplot.cbar_axes, 0.5, 0.25, button="up")
+        assert cbplot.axesimage.norm.vmin == cbplot.vmin_ref
+        scroll_in_axes(cbplot.cbar_axes, 0.5, 0.75, button="down")
+        assert cbplot.axesimage.norm.vmax == cbplot.vmax_ref
+
+    @pytest.mark.parametrize("dtype", ["uint8", "int32", "float32", "float64"])
+    def test_cmap_limits_type(self, image, dtype):
+        """The colormap limits should be floats for any array type."""
+        cbplot = AutoscaledColorbarTestPlot((16.0 * image).astype(dtype))
+        assert all(isinstance(limit, float) for limit in cbplot.cmap_limits)
+        assert cbplot.cmap_limits == (cbplot.vmin_ref, cbplot.vmax_ref)
+
+    @pytest.mark.parametrize("dtype", ["uint8", "int32"])
+    def test_shift_autoscaled_integer_limits(self, image, dtype):
+        """Shifts should be supported for integer colormap limits.
+
+        Matplotlib records the colormap limits of an array of integer
+        type as integers rather than floats when it determines them by
+        autoscaling.
+        """
+        cbplot = AutoscaledColorbarTestPlot((16.0 * image).astype(dtype))
+        vrange = cbplot.vmax_ref - cbplot.vmin_ref
+        cbplot.shift_cmap_vmin(0.25)
+        cbplot.shift_cmap_vmax(-0.25)
+        assert cbplot.cmap_limits == pytest.approx(
+            (cbplot.vmin_ref + 0.25 * vrange, cbplot.vmax_ref - 0.25 * vrange)
+        )
+
+    @pytest.mark.parametrize("dtype", ["uint8", "int32"])
+    def test_scroll_autoscaled_integer_limits(self, image, dtype):
+        """A colorbar scroll should be supported for integer limits."""
+        cbplot = AutoscaledColorbarTestPlot((16.0 * image).astype(dtype))
+        vrange = cbplot.vmax_ref - cbplot.vmin_ref
+        scroll_in_axes(cbplot.cbar_axes, 0.5, 0.25, button="up")
+        scroll_in_axes(cbplot.cbar_axes, 0.5, 0.75, button="down")
+        assert cbplot.cmap_limits == pytest.approx(
+            (cbplot.vmin_ref + 0.02 * vrange, cbplot.vmax_ref - 0.02 * vrange)
         )
 
     def test_zoom_still_supported(self, image):

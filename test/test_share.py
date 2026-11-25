@@ -183,6 +183,29 @@ class TestShareCmap:
         group = share_cmap([image_views[0], image_views[1], image_views[0]])
         assert group.members() == image_views[:2]
 
+    def test_broadcast_autoscaled_integer_limits(self, image):
+        """A broadcast should be supported for integer colormap limits.
+
+        Matplotlib records autoscaled colormap limits of an array of
+        integer type as integers rather than floats.
+        """
+        _, ax = plt.subplots(nrows=1, ncols=2)
+        views = [
+            kplt.ImageView((16.0 * image).astype("uint8"), show_cbar=True, ax=a)
+            for a in ax
+        ]
+        assert not any(isinstance(v.axesimage.norm.vmin, float) for v in views)
+        share_cmap(views)
+        scroll_in_axes(views[0].cbar_axes, 0.5, 0.25, button="up")
+        scroll_in_axes(views[0].cbar_axes, 0.5, 0.75, button="down")
+        for view in views:
+            assert view.cmap_limits == pytest.approx(
+                (
+                    view.vmin_ref + 0.02 * (view.vmax_ref - view.vmin_ref),
+                    view.vmax_ref - 0.02 * (view.vmax_ref - view.vmin_ref),
+                )
+            )
+
     def test_cross_figure_share(self, image):
         """Plots in different figures should be shareable."""
         view0 = kplt.imview(image, show_cbar=True)

@@ -139,13 +139,7 @@ class ImageMixin:
     displayed when the pointer is over valid image data, and an optional
     colorbar. It requires :class:`.ColorbarMixin`, the initializer of
     which it calls with the image and colorbar artists it creates.
-
-    Attributes:
-        cbar_orient: Orientation of the colorbar, or ``None`` if there is
-           no colorbar.
     """
-
-    cbar_orient: Optional[str] = None
 
     def init_image(
         self,
@@ -220,23 +214,26 @@ class ImageMixin:
             mplcrs.cursor(axim)
 
         divider = make_axes_locatable(ax) if make_divider else None
+        cbar_orient: Optional[str] = None
+        cbar_visible, cax = False, None
         if show_cbar or show_cbar is None:
             if divider is None:
                 divider = make_axes_locatable(ax)
-            self.cbar_orient = (
+            cbar_orient = (
                 "vertical" if image.shape[0] >= image.shape[1] else "horizontal"
             )
+            cbar_visible = show_cbar is not None
             cax = _create_colorbar(
-                ax,
-                axim,
-                divider,
-                orient=self.cbar_orient,
-                visible=show_cbar is not None,
+                ax, axim, divider, orient=cbar_orient, visible=cbar_visible
             )
-        else:
-            self.cbar_orient, cax = None, None
 
-        self.init_colorbar(axim, divider=divider, cbar_axes=cax)  # type: ignore[attr-defined]
+        self.init_colorbar(  # type: ignore[attr-defined]
+            axim,
+            divider=divider,
+            cbar_axes=cax,
+            cbar_orient=cbar_orient,
+            cbar_visible=cbar_visible,
+        )
 
 
 class ImageView(ImageMixin, ColorbarMixin, ZoomMixin, Plot):

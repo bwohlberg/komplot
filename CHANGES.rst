@@ -12,6 +12,10 @@ Version 0.0.5   (xxxx-xx-xx)
   a dict of keyword arguments as parameter xlog or ylog, allowing distinct
   properties for each axis.
 • Fix bug in handling of cmap_delta parameter of image and volume views.
+• Fix bugs in interactive colormap range adjustment: the adjustment failed
+  for a plot with colormap limits determined by matplotlib autoscaling of an
+  array of integer type, and a mouse scroll event in an invisible colorbar
+  raised an exception instead of being ignored.
 • Major restructuring of the class hierarchy: each plot type is now a single
   class, combining plot state, construction, and event handling, composed
   from feature mixin classes (ZoomMixin, ColorbarMixin, ImageMixin, and

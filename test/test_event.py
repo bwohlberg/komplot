@@ -285,7 +285,7 @@ class TestScrollDispatch:
     def test_horizontal_colorbar_scroll_lower(self, wide_image_view):
         """Scroll in the left half of a horizontal colorbar should set vmin."""
         iview = wide_image_view
-        assert iview.cbar_axes._colorbar.orientation == "horizontal"
+        assert iview.cbar_orient == "horizontal"
         scroll_in_axes(iview.cbar_axes, 0.25, 0.5, button="up")
         assert iview.axesimage.norm.vmin > iview.vmin_ref
         assert iview.axesimage.norm.vmax == iview.vmax_ref
