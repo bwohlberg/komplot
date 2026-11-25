@@ -18,9 +18,11 @@ iv = imview(imc)
 """
 Plot two images as subplots of the same figure.
 """
-fig, ax = subplots(nrows=1, ncols=2, sharex=True, sharey=True, figsize=(18, 8))
-iv0 = imview(img, cmap="Greys", show_cbar=True, ax=ax[0])
-iv1 = imview(img, cmap="Blues", show_cbar=True, ax=ax[1])
+fig, ax = subplots(
+    nrows=1, ncols=2, cbar=True, sharex=True, sharey=True, figsize=(18, 8)
+)
+iv0 = imview(img, cmap="Greys", ax=ax[0])
+iv1 = imview(img, cmap="Blues", ax=ax[1])
 share_cmap([iv0, iv1])
 fig.show()
 

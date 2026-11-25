@@ -25,13 +25,17 @@ iv.slice_index = 110
 """
 Plot slices of two different axes as subplots of the same figure. This is only feasible because the  volume has the same dimensions on these two axes: plot axes should not be slice-shared across volume axes of different dimensions.
 """
-fig, ax = subplots(nrows=1, ncols=2, sharex=True, sharey=True, figsize=(10, 8))
-iv0 = volview(
-    vol, slice_axis=2, title="Axis 0-1 slices", cmap="Blues", show_cbar=True, ax=ax[0]
+fig, ax = subplots(
+    nrows=1,
+    ncols=2,
+    cbar=True,
+    slider=True,
+    sharex=True,
+    sharey=True,
+    figsize=(10, 8),
 )
-iv1 = volview(
-    vol, slice_axis=1, title="Axis 0-2 slices", cmap="Blues", show_cbar=True, ax=ax[1]
-)
+iv0 = volview(vol, slice_axis=2, title="Axis 0-1 slices", cmap="Blues", ax=ax[0])
+iv1 = volview(vol, slice_axis=1, title="Axis 0-2 slices", cmap="Blues", ax=ax[1])
 share_slice([iv0, iv1])
 share_cmap([iv0, iv1])
 iv0.slice_index = 100

@@ -494,19 +494,18 @@ class TestColorbarMixin:
             cbplot.vmax_ref - 0.25 * vrange
         )
 
-    def test_colorbar_orientation_and_visibility(self, image):
-        """The colorbar orientation and visibility should be recorded."""
+    def test_colorbar_orientation(self, image):
+        """The colorbar orientation should be recorded."""
         cbplot = ColorbarTestPlot(image)
         assert cbplot.cbar_orient == "vertical"
-        assert cbplot.cbar_visible
 
-    def test_invisible_colorbar_not_adjusted(self, image):
-        """An invisible colorbar should not respond to a scroll event."""
+    def test_colorbar_absent_not_adjusted(self, image):
+        """A plot without a colorbar should not respond to a scroll event."""
         cbplot = ColorbarTestPlot(image)
-        cbplot.cbar_visible = False
-        scroll_in_axes(cbplot.cbar_axes, 0.5, 0.25, button="up")
+        cbar_axes, cbplot.cbar_axes = cbplot.cbar_axes, None
+        scroll_in_axes(cbar_axes, 0.5, 0.25, button="up")
         assert cbplot.axesimage.norm.vmin == cbplot.vmin_ref
-        scroll_in_axes(cbplot.cbar_axes, 0.5, 0.75, button="down")
+        scroll_in_axes(cbar_axes, 0.5, 0.75, button="down")
         assert cbplot.axesimage.norm.vmax == cbplot.vmax_ref
 
     @pytest.mark.parametrize("dtype", ["uint8", "int32", "float32", "float64"])

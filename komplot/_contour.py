@@ -16,6 +16,7 @@ from matplotlib.axes import Axes
 from matplotlib.colors import Colormap
 from mpl_toolkits.axes_grid1 import make_axes_locatable  # type: ignore[import-untyped]
 
+from ._layout import claim_reserved_axes, reserved_orientation
 from ._state import (
     ColorbarMixin,
     LogScaleType,
@@ -129,15 +130,30 @@ class ContourPlot(ColorbarMixin, ZoomMixin, Plot):
         if ylabel is not None:
             axs.set_ylabel(ylabel, fontsize=xylabel_fontsize)
 
-        divider = make_axes_locatable(axs)
-        cax = divider.append_axes("right", size="5%", pad=0.2)
-        plt.colorbar(qmesh, ax=axs, cax=cax)
+        # Space reserved for the colorbar within the layout of the figure is
+        # used in preference to space taken from the axes of the plot itself,
+        # which reduces the size of the plot with respect to others in the
+        # same figure
+        reserved, owner = claim_reserved_axes(axs, "cax")
+        divider, cax, cbar_orient = None, None, None
+        if owner is None:
+            if reserved is None:
+                divider = make_axes_locatable(axs)
+                cax = divider.append_axes("right", size="5%", pad=0.2)
+                cbar_orient = "vertical"
+            else:
+                # An axes reserved within the figure layout is hidden until used
+                reserved.set_visible(True)
+                cax = reserved
+                cbar_orient = reserved_orientation(reserved)
+            plt.colorbar(qmesh, ax=axs, cax=cax, orientation=cbar_orient)
 
         self.init_colorbar(
             qmesh,  # type: ignore[arg-type]
             divider=divider,
             cbar_axes=cax,
-            cbar_orient="vertical",
+            cbar_orient=cbar_orient,
+            cbar_owner=owner,
             cmap_data_limits=data_limits(z),
         )
         self.init_zoom()

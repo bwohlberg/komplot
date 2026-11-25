@@ -7,7 +7,7 @@ img = imc[..., 0]
 
 
 """
-We can view both images as subplots within the same figure, but the colour bar on the second image changes its aspect ratio, which has the undesirable result of the two images being displayed with different sizes.
+We can view both images as subplots within the same figure, but a colorbar attached to the second image takes the space for itself from the axes of that image, with the undesirable result that the two images are displayed at different sizes.
 """
 
 fig, ax = kplt.subplots(nrows=1, ncols=2, figsize=(18, 8))
@@ -24,44 +24,35 @@ fig.show()
 
 
 """
-One solution is to adjust the ratios of the widths of the two subplots. We can also share x and y axes so that a zoom in one image is replicated in the other (this is, of course, only possible in the interactive version of this demonstration script).
+The solution is to reserve the space for the colorbar within the layout of the figure itself, via the `cbar` parameter of :func:`komplot.subplots`, which specifies the plots for which space is to be reserved. The images are then of equal size, and remain so when the figure is resized, since none of the space of either of them is taken by the colorbar. A colorbar is displayed by default in an axes for which space has been reserved. We can also share x and y axes so that a zoom in one image is replicated in the other (this is, of course, only possible in the interactive version of this demonstration script).
 """
 
 fig, ax = kplt.subplots(
     nrows=1,
     ncols=2,
+    cbar=[False, True],
     sharex=True,
     sharey=True,
-    gridspec_kw={"width_ratios": [1, 1.07]},
-    figsize=(19.5, 8),
+    figsize=(18, 8),
 )
 fig.suptitle("Figure Title", fontsize=14)
 kplt.imview(imc, title="Colour Image", ax=ax[0])
-kplt.imview(
-    img,
-    cmap=kplt.cm.coolwarm,
-    title="Monochrome Image",
-    show_cbar=True,
-    ax=ax[1],
-)
+kplt.imview(img, cmap=kplt.cm.coolwarm, title="Monochrome Image", ax=ax[1])
 fig.show()
 
 
 """
-An alternative solution is to add an invisible colorbar to the first image so that they have the same size. This can be achieved by setting `show_cbar=None` instead of `cbar=True`.
+When a set of images is displayed with the same colormap range, a single colorbar can represent all of them. Space for one that is shared by every plot in the figure is reserved by `cbar="shared"`, the colorbar being drawn by the first plot that is displayed. Since the colormap range of that plot is the one represented by the colorbar, the plots are placed in a colormap share group so that an interactive adjustment of the range of any of them is applied to all.
 """
 
-
-fig, ax = kplt.subplots(nrows=1, ncols=2, sharex=True, sharey=True, figsize=(18, 8))
-fig.suptitle("Figure Title", fontsize=14)
-kplt.imview(imc, title="Colour Image", show_cbar=None, ax=ax[0])
-kplt.imview(
-    img,
-    cmap=kplt.cm.coolwarm,
-    title="Monochrome Image",
-    show_cbar=True,
-    ax=ax[1],
-)
+norm = kplt.colors.Normalize(vmin=0, vmax=255)
+fig, ax = kplt.subplots(nrows=1, ncols=3, cbar="shared", figsize=(18, 6))
+fig.suptitle("Colour Image Channels", fontsize=14)
+ivs = [
+    kplt.imview(imc[..., n], norm=norm, title=f"Channel {n}", ax=ax[n])
+    for n in range(3)
+]
+kplt.share_cmap(ivs)
 fig.show()
 
 

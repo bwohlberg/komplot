@@ -31,6 +31,7 @@ former.
 
 from __future__ import annotations
 
+import warnings
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple, Union
 
 import matplotlib as mpl
@@ -46,6 +47,7 @@ from mpl_toolkits.axes_grid1.axes_divider import (
 )
 
 from ._event import attach_figure_event_manager
+from ._layout import RESERVED_NAMES
 
 if TYPE_CHECKING:
     from ._share import ShareGroup
@@ -118,8 +120,17 @@ def figure_and_axes(
             # See https://stackoverflow.com/a/43563804
             #     https://stackoverflow.com/a/35221116
             if ax.name != "3d":
+                # Space reserved for auxiliary axes belongs to the cell of the
+                # gridspec rather than to the axes replaced within it
+                reserved = {
+                    name: getattr(ax, name)
+                    for name in RESERVED_NAMES
+                    if hasattr(ax, name)
+                }
                 ax.remove()
                 ax = fig.add_subplot(ax.get_subplotspec(), projection="3d")
+                for name, axs in reserved.items():
+                    setattr(ax, name, axs)
         new_fig = False
     return fig, ax, new_fig
 
@@ -390,9 +401,6 @@ class ColorbarMixin:
            colorbar.
         cbar_orient: Orientation of the colorbar, "vertical" or
            "horizontal", or ``None`` if there is no colorbar.
-        cbar_visible: ``True`` if the colorbar is visible. An invisible
-           colorbar, created to maintain consistent image size within a
-           figure, does not respond to mouse scroll events.
         cmap_delta: Fraction of the current colormap range by which a
            vmin/vmax shift changes it.
         vmin_ref: Reference colormap :code:`vmin`, i.e. its value on
@@ -411,10 +419,9 @@ class ColorbarMixin:
     """
 
     axesimage: mpl.image.AxesImage
-    divider: Optional[AxesDivider]
-    cbar_axes: Optional[Axes]
+    divider: Optional[AxesDivider] = None
+    cbar_axes: Optional[Axes] = None
     cbar_orient: Optional[str] = None
-    cbar_visible: bool = False
     cmap_delta: float
     vmin_ref: float
     vmax_ref: float
@@ -429,7 +436,7 @@ class ColorbarMixin:
         divider: Optional[AxesDivider] = None,
         cbar_axes: Optional[Axes] = None,
         cbar_orient: Optional[str] = None,
-        cbar_visible: bool = True,
+        cbar_owner: Optional["ColorbarMixin"] = None,
         cmap_data_limits: Optional[Tuple[float, float]] = None,
         cmap_delta: float = 0.02,
     ):
@@ -449,8 +456,12 @@ class ColorbarMixin:
             cbar_orient: Orientation of the colorbar, "vertical" or
                "horizontal". If :code:`cbar_axes` is specified and this
                is not, the matplotlib default of "vertical" is assumed.
-            cbar_visible: Flag indicating whether the colorbar is
-               visible.
+            cbar_owner: Plot that has drawn its colorbar in an axes
+               shared with this plot (see :func:`komplot.subplots`), if
+               there is one, in which case this plot has no colorbar of
+               its own, and a warning is emitted if their colormap
+               ranges differ, since the colorbar of the other plot does
+               not then represent the data of this one.
             cmap_data_limits: Range of the displayed data, as a tuple
                (`min`, `max`), which bounds the adjustment of the
                colormap limits. If ``None``, or not finite, the
@@ -472,7 +483,6 @@ class ColorbarMixin:
             self.cbar_orient = None
         else:
             self.cbar_orient = "vertical" if cbar_orient is None else cbar_orient
-        self.cbar_visible = cbar_visible and cbar_axes is not None
         self.cmap_delta = cmap_delta
         self.vmin_ref, self.vmax_ref = self.cmap_limits
         self.cmap_span_min = 1e-3 * (self.vmax_ref - self.vmin_ref)
@@ -486,6 +496,18 @@ class ColorbarMixin:
             self.vmin_bound = min(cmap_data_limits[0], self.vmin_ref)
             self.vmax_bound = max(cmap_data_limits[1], self.vmax_ref)
         self._cmap_group = None
+
+        if cbar_owner is not None:
+            owner_limits = cbar_owner.cmap_limits
+            if owner_limits != self.cmap_limits:
+                warnings.warn(
+                    f"Colormap range {self.cmap_limits} of a plot sharing a colorbar "
+                    f"differs from the range {owner_limits} of the plot that drew it, "
+                    "which therefore does not represent the data of this plot. Plots "
+                    "sharing a colorbar should be displayed with the same colormap "
+                    "range, e.g. by specifying the same vmin and vmax for each.",
+                    stacklevel=3,
+                )
 
     @property
     def cmap_limits(self) -> Tuple[float, float]:
@@ -547,11 +569,11 @@ class ColorbarMixin:
 
         Returns:
             Position of the event within the colorbar, as a fraction of
-            its extent, or ``None`` if the event did not occur in a
-            visible colorbar.
+            its extent, or ``None`` if the event did not occur in the
+            colorbar of this plot.
         """
         assert hasattr(event, "inaxes") and hasattr(event, "x") and hasattr(event, "y")
-        if self.cbar_axes is None or not self.cbar_visible:
+        if self.cbar_axes is None:
             return None
         if event.inaxes is not self.cbar_axes:
             return None
@@ -668,8 +690,8 @@ class SliceMixin:
     """
 
     volume: np.ndarray
-    slider_axes: Optional[Axes]
-    slider: Optional[Slider]
+    slider_axes: Optional[Axes] = None
+    slider: Optional[Slider] = None
     _slice_index: int = 0
     _slice_group: Optional[ShareGroup] = None
 
