@@ -1,6 +1,6 @@
 from imageio.v3 import imread
 
-from komplot import figure_event_manager, imview, subplots
+from komplot import imview, share_cmap, subplots
 
 """
 Load examples images.
@@ -19,10 +19,9 @@ iv = imview(imc)
 Plot two images as subplots of the same figure.
 """
 fig, ax = subplots(nrows=1, ncols=2, sharex=True, sharey=True, figsize=(18, 8))
-imview(img, cmap="Greys", show_cbar=True, ax=ax[0])
-imview(img, cmap="Blues", show_cbar=True, ax=ax[1])
-fem = figure_event_manager(fig, error=True)
-fem.set_cmap_share(ax)
+iv0 = imview(img, cmap="Greys", show_cbar=True, ax=ax[0])
+iv1 = imview(img, cmap="Blues", show_cbar=True, ax=ax[1])
+share_cmap([iv0, iv1])
 fig.show()
 
 

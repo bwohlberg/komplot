@@ -137,13 +137,18 @@ class TestSurface:
         splot = kplt.surface(surface_data)
         assert isinstance(figure_event_manager(splot.figure), FigureEventManager)
 
-    def test_no_axes_event_manager(self, surface_data):
-        """No axes event manager should be attached."""
+    def test_plot_registration(self, surface_data):
+        """The plot should be registered with the figure event manager."""
         splot = kplt.surface(surface_data)
         fem = figure_event_manager(splot.figure)
-        assert fem.get_axevman_for_axes(splot.axes) is None
+        assert fem.plot_for_axes(splot.axes) is splot
 
-    def test_shared_figure_event_manager(self, surface_data):
+    def test_no_scroll_handlers(self, surface_data):
+        """A surface plot should have no mouse scroll event handlers."""
+        splot = kplt.surface(surface_data)
+        assert splot.scroll_handlers() == ()
+
+    def test_event_manager_shared_figure(self, surface_data):
         """A single figure event manager should serve multiple axes."""
         fig = plt.figure()
         ax0 = fig.add_subplot(1, 2, 1, projection="3d")

@@ -14,7 +14,7 @@ from matplotlib.axes import Axes
 from mpl_toolkits.axes_grid1.axes_divider import AxesDivider
 
 import komplot as kplt
-from komplot import ColorbarEventManager, ContourPlot, figure_event_manager
+from komplot import ContourPlot, figure_event_manager
 
 
 class TestContour:
@@ -221,19 +221,25 @@ class TestContour:
         assert cplot.figure is fig
         assert plt.get_fignums() == [fig.number]
 
-    def test_event_managers(self, surface_data):
-        """Figure and axes event managers should be attached."""
+    def test_event_manager(self, surface_data):
+        """The plot should be registered with the figure event manager."""
         cplot = kplt.contour(surface_data)
         fem = figure_event_manager(cplot.figure)
-        axem = fem.get_axevman_for_axes(cplot.axes)
-        assert isinstance(axem, ColorbarEventManager)
-        assert axem.plot is cplot
+        assert cplot.event_manager is fem
+        assert fem.plot_for_axes(cplot.axes) is cplot
 
-    def test_event_managers_shared_figure(self, surface_data):
-        """A single figure event manager should serve multiple axes."""
+    def test_event_manager_shared_figure(self, surface_data):
+        """A single figure event manager should serve multiple plots."""
         _, ax = plt.subplots(nrows=1, ncols=2)
         cplot0 = kplt.contour(surface_data, ax=ax[0])
         cplot1 = kplt.contour(surface_data, ax=ax[1])
         fem = figure_event_manager(cplot0.figure)
         assert fem is figure_event_manager(cplot1.figure)
-        assert fem.get_axevman_for_axes(ax[1]).plot is cplot1
+        assert fem.plots == [cplot0, cplot1]
+
+    def test_feature_support(self, surface_data):
+        """The plot should support colormap range adjustment and zoom."""
+        cplot = kplt.contour(surface_data)
+        assert isinstance(cplot, (kplt.ColorbarMixin, kplt.ZoomMixin))
+        assert cplot.vmin_ref == cplot.axesimage.norm.vmin
+        assert cplot.xlim_ref == cplot.axes.get_xlim()

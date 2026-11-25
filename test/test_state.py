@@ -10,32 +10,46 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
+from conftest import scroll_at_data, scroll_in_axes
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-from komplot import ColorbarPlot, GenericPlot, ZoomablePlot
+import komplot as kplt
+from komplot import ColorbarMixin, Plot, ZoomMixin, figure_event_manager
 from komplot._state import figure_and_axes, log_scale_kwargs
 
 
-def make_zoomable(xlim=(0.0, 10.0), ylim=(0.0, 10.0)):
-    """Construct a ZoomablePlot with specified axis limits."""
-    fig, ax = plt.subplots()
-    ax.set_xlim(*xlim)
-    ax.set_ylim(*ylim)
-    return ZoomablePlot(figure=fig, axes=ax)
+class ZoomTestPlot(ZoomMixin, Plot):
+    """A minimal plot type supporting axis zoom, for testing the mixin."""
+
+    def __init__(self, xlim=(0.0, 10.0), ylim=(0.0, 10.0), zoom_scale=2.0):
+        """Create a figure and axes with the specified axis limits."""
+        fig, ax = plt.subplots()
+        super().__init__(figure=fig, axes=ax)
+        ax.set_xlim(*xlim)
+        ax.set_ylim(*ylim)
+        self.init_zoom(zoom_scale=zoom_scale)
 
 
-def make_colorbar_plot(image, **kwargs):
-    """Construct a ColorbarPlot displaying an image."""
-    fig, ax = plt.subplots()
-    axim = ax.imshow(image, vmin=image.min(), vmax=image.max(), **kwargs)
-    divider = make_axes_locatable(ax)
-    cax = divider.append_axes("right", size="5%", pad=0.2)
-    plt.colorbar(axim, ax=ax, cax=cax)
-    return ColorbarPlot(
-        figure=fig, axes=ax, axesimage=axim, divider=divider, cbar_axes=cax
-    )
+class ColorbarTestPlot(ColorbarMixin, ZoomMixin, Plot):
+    """A minimal plot type supporting a colorbar, for testing the mixin."""
+
+    def __init__(self, image, cmap_delta=0.02, **kwargs):
+        """Display an image with a colorbar."""
+        fig, ax = plt.subplots()
+        super().__init__(figure=fig, axes=ax)
+        axesimage = ax.imshow(image, vmin=image.min(), vmax=image.max(), **kwargs)
+        divider = make_axes_locatable(ax)
+        cbar_axes = divider.append_axes("right", size="5%", pad=0.2)
+        plt.colorbar(axesimage, ax=ax, cax=cbar_axes)
+        self.init_colorbar(
+            axesimage,
+            divider=divider,
+            cbar_axes=cbar_axes,
+            cmap_delta=cmap_delta,
+        )
+        self.init_zoom()
 
 
 class TestLogScaleKwargs:
@@ -105,61 +119,129 @@ class TestFigureAndAxes:
         assert ax is ext_ax
 
 
-class TestGenericPlot:
-    """Tests for class GenericPlot."""
+class TestPlot:
+    """Tests for class Plot."""
 
     def test_attributes(self):
         """Figure and axes attributes should be as specified."""
         fig, ax = plt.subplots()
-        gplot = GenericPlot(figure=fig, axes=ax)
-        assert gplot.figure is fig
-        assert gplot.axes is ax
+        plot = Plot(figure=fig, axes=ax)
+        assert plot.figure is fig
+        assert plot.axes is ax
+        assert not plot.new_figure
 
-    def test_positional_args_not_supported(self):
-        """Construction should require keyword arguments."""
+    def test_event_manager_registration(self):
+        """A plot should register with the event manager of its figure."""
         fig, ax = plt.subplots()
-        with pytest.raises(TypeError):
-            GenericPlot(fig, ax)
+        plot = Plot(figure=fig, axes=ax)
+        fem = figure_event_manager(fig)
+        assert plot.event_manager is fem
+        assert fem.plots == [plot]
+        assert fem.plot_for_axes(ax) is plot
+
+    def test_owns_axes(self):
+        """A plot should own its own axes only."""
+        fig, ax = plt.subplots(nrows=1, ncols=2)
+        plot = Plot(figure=fig, axes=ax[0])
+        assert plot.owns_axes(ax[0])
+        assert not plot.owns_axes(ax[1])
+
+    def test_no_scroll_handlers(self):
+        """A plot with no feature mixins should have no scroll handlers."""
+        fig, ax = plt.subplots()
+        plot = Plot(figure=fig, axes=ax)
+        assert plot.scroll_handlers() == ()
+        assert not plot.handle_scroll(object())
+
+    def test_show_new_figure(self, monkeypatch):
+        """A figure created for the plot should be shown once only."""
+        shown = []
+        monkeypatch.setattr(Figure, "show", lambda self: shown.append(self))
+        fig, ax = plt.subplots()
+        plot = Plot(figure=fig, axes=ax, new_figure=True)
+        plot.show_new_figure()
+        plot.show_new_figure()
+        assert shown == [fig]
+
+    def test_show_existing_figure(self, monkeypatch):
+        """A figure not created for the plot should not be shown."""
+        shown = []
+        monkeypatch.setattr(Figure, "show", lambda self: shown.append(self))
+        fig, ax = plt.subplots()
+        Plot(figure=fig, axes=ax).show_new_figure()
+        assert shown == []
 
     def test_toolbar_message_without_toolbar(self):
         """A toolbar message should be discarded if there is no toolbar."""
         fig, ax = plt.subplots()
         assert fig.canvas.toolbar is None
-        GenericPlot(figure=fig, axes=ax).toolbar_message("message")
+        Plot(figure=fig, axes=ax).toolbar_message("message")
 
     def test_toolbar_message(self, toolbar_axes):
         """A toolbar message should be displayed if there is a toolbar."""
         fig, ax, toolbar = toolbar_axes
-        GenericPlot(figure=fig, axes=ax).toolbar_message("message")
+        Plot(figure=fig, axes=ax).toolbar_message("message")
         assert toolbar.messages == ["message"]
 
 
-class TestZoomablePlot:
-    """Tests for class ZoomablePlot."""
+class TestScrollHandlerComposition:
+    """Tests for the composition of scroll event handlers by the mixins."""
+
+    @pytest.mark.parametrize(
+        "plot_type,handlers",
+        [
+            (kplt.SurfacePlot, []),
+            (kplt.LinePlot, ["zoom"]),
+            (kplt.ContourPlot, ["cmap", "zoom"]),
+            (kplt.ImageView, ["cmap", "zoom"]),
+            (kplt.VolumeView, ["slice", "cmap", "zoom"]),
+        ],
+    )
+    def test_handler_order(self, plot_type, handlers, image, volume, surface_data):
+        """Handlers should be ordered as the mixins are declared."""
+        data = {
+            kplt.SurfacePlot: surface_data,
+            kplt.LinePlot: image[0],
+            kplt.ContourPlot: surface_data,
+            kplt.ImageView: image,
+            kplt.VolumeView: volume,
+        }[plot_type]
+        plot = plot_type(data)
+        expected = [f"_scroll_{name}_handler" for name in handlers]
+        assert [h.__name__ for h in plot.scroll_handlers()] == expected
+
+    def test_custom_composition(self):
+        """A plot type may be composed from any set of feature mixins."""
+        plot = ZoomTestPlot()
+        assert [h.__name__ for h in plot.scroll_handlers()] == ["_scroll_zoom_handler"]
+
+
+class TestZoomMixin:
+    """Tests for class ZoomMixin."""
 
     def test_limit_reference(self):
         """Reference limits should be initialized from the axes limits."""
-        zplot = make_zoomable(xlim=(1.0, 3.0), ylim=(-1.0, 5.0))
+        zplot = ZoomTestPlot(xlim=(1.0, 3.0), ylim=(-1.0, 5.0))
         assert zplot.xlim_ref == (1.0, 3.0)
         assert zplot.ylim_ref == (-1.0, 5.0)
 
     def test_zoom_in(self):
         """Zoom in at the centre should scale the limits about the centre."""
-        zplot = make_zoomable()
+        zplot = ZoomTestPlot()
         zplot.zoom_view(5.0, 5.0, 0.5)
         assert zplot.axes.get_xlim() == pytest.approx((2.5, 7.5))
         assert zplot.axes.get_ylim() == pytest.approx((2.5, 7.5))
 
     def test_zoom_in_off_centre(self):
         """Zoom in should be centred on the event location."""
-        zplot = make_zoomable()
+        zplot = ZoomTestPlot()
         zplot.zoom_view(2.0, 8.0, 0.5)
         assert zplot.axes.get_xlim() == pytest.approx((1.0, 6.0))
         assert zplot.axes.get_ylim() == pytest.approx((4.0, 9.0))
 
     def test_zoom_out_clipped_to_reference(self):
         """Zoom out should not exceed the reference limits."""
-        zplot = make_zoomable()
+        zplot = ZoomTestPlot()
         zplot.zoom_view(5.0, 5.0, 0.5)
         zplot.zoom_view(5.0, 5.0, 8.0)
         assert zplot.axes.get_xlim() == pytest.approx((0.0, 10.0))
@@ -167,14 +249,14 @@ class TestZoomablePlot:
 
     def test_zoom_out_off_centre_clipped_to_reference(self):
         """Zoom out at an off-centre location should be shifted into range."""
-        zplot = make_zoomable()
+        zplot = ZoomTestPlot()
         zplot.zoom_view(1.0, 9.0, 4.0)
         assert zplot.axes.get_xlim() == pytest.approx((0.0, 10.0))
         assert zplot.axes.get_ylim() == pytest.approx((0.0, 10.0))
 
     def test_zoom_out_clipped_to_upper_reference(self):
         """Zoom out should not exceed the upper reference limits."""
-        zplot = make_zoomable()
+        zplot = ZoomTestPlot()
         zplot.axes.set_xlim(8.0, 10.0)
         zplot.axes.set_ylim(8.0, 10.0)
         zplot.zoom_view(9.5, 9.5, 2.0)
@@ -183,7 +265,7 @@ class TestZoomablePlot:
 
     def test_zoom_with_inverted_y_axis(self):
         """Zoom should respect an inverted y axis, as used for images."""
-        zplot = make_zoomable(ylim=(10.0, 0.0))
+        zplot = ZoomTestPlot(ylim=(10.0, 0.0))
         zplot.zoom_view(5.0, 5.0, 0.5)
         ylim = zplot.axes.get_ylim()
         assert ylim[0] > ylim[1]
@@ -191,39 +273,68 @@ class TestZoomablePlot:
         zplot.zoom_view(5.0, 5.0, 8.0)
         assert zplot.axes.get_ylim() == pytest.approx((10.0, 0.0))
 
+    def test_scroll_zoom_in(self):
+        """Scroll up in the plot axes should zoom in."""
+        zplot = ZoomTestPlot()
+        scroll_at_data(zplot.axes, 5.0, 5.0, button="up")
+        assert zplot.axes.get_xlim() == pytest.approx((2.5, 7.5))
+
+    def test_scroll_zoom_out(self):
+        """Scroll down in the plot axes should zoom out."""
+        zplot = ZoomTestPlot()
+        zplot.zoom_view(5.0, 5.0, 0.5)
+        scroll_at_data(zplot.axes, 5.0, 5.0, button="down")
+        assert zplot.axes.get_xlim() == pytest.approx((0.0, 10.0))
+
+    def test_zoom_scale(self):
+        """The zoom scaling factor should be as specified."""
+        zplot = ZoomTestPlot(zoom_scale=4.0)
+        scroll_at_data(zplot.axes, 5.0, 5.0, button="up")
+        assert np.diff(zplot.axes.get_xlim()) == pytest.approx(2.5)
+
     def test_zoom_toolbar_message(self, toolbar_axes):
         """The zoom toolbar message should display the current limits."""
         fig, ax, toolbar = toolbar_axes
         ax.set_xlim(0.0, 10.0)
         ax.set_ylim(0.0, 10.0)
-        zplot = ZoomablePlot(figure=fig, axes=ax)
+        zplot = kplt.plot(np.arange(2), ax=ax)
         zplot.zoom_view(5.0, 5.0, 0.5)
         zplot.zoom_toolbar_message()
-        assert toolbar.messages[-1] == "Zoom to [2.5:7.5, 2.5:7.5]"
+        assert toolbar.messages[-1].startswith("Zoom to")
 
     def test_zoom_toolbar_message_inverted_y_axis(self, toolbar_axes):
         """The zoom toolbar message should order inverted y limits."""
         fig, ax, toolbar = toolbar_axes
+        plot = kplt.plot(np.arange(2), ax=ax)
         ax.set_xlim(0.0, 10.0)
         ax.set_ylim(10.0, 0.0)
-        zplot = ZoomablePlot(figure=fig, axes=ax)
-        zplot.zoom_toolbar_message()
+        plot.zoom_toolbar_message()
         assert toolbar.messages[-1] == "Zoom to [0.0:10.0, 0.0:10.0]"
 
 
-class TestColorbarPlot:
-    """Tests for class ColorbarPlot."""
+class TestColorbarMixin:
+    """Tests for class ColorbarMixin."""
 
     def test_colormap_limit_reference(self, image):
         """Reference limits should be initialized from the colormap limits."""
-        cbplot = make_colorbar_plot(image)
+        cbplot = ColorbarTestPlot(image)
         assert cbplot.vmin_ref == image.min()
         assert cbplot.vmax_ref == image.max()
         assert cbplot.xlim_ref == cbplot.axes.get_xlim()
 
+    def test_no_share_group(self, image):
+        """A plot should not initially belong to a colormap share group."""
+        assert ColorbarTestPlot(image).cmap_group is None
+
+    def test_owns_colorbar_axes(self, image):
+        """The colorbar axes should be owned by the plot."""
+        cbplot = ColorbarTestPlot(image)
+        assert cbplot.owns_axes(cbplot.cbar_axes)
+        assert cbplot.owns_axes(cbplot.axes)
+
     def test_shift_vmin(self, image):
         """A vmin shift should be relative to the reference range."""
-        cbplot = make_colorbar_plot(image)
+        cbplot = ColorbarTestPlot(image)
         vrange = cbplot.vmax_ref - cbplot.vmin_ref
         cbplot.shift_cmap_vmin(0.25)
         assert cbplot.axesimage.norm.vmin == pytest.approx(
@@ -233,7 +344,7 @@ class TestColorbarPlot:
 
     def test_shift_vmax(self, image):
         """A vmax shift should be relative to the reference range."""
-        cbplot = make_colorbar_plot(image)
+        cbplot = ColorbarTestPlot(image)
         vrange = cbplot.vmax_ref - cbplot.vmin_ref
         cbplot.shift_cmap_vmax(-0.25)
         assert cbplot.axesimage.norm.vmax == pytest.approx(
@@ -243,43 +354,85 @@ class TestColorbarPlot:
 
     def test_shift_vmin_clipped_to_reference(self, image):
         """A vmin shift should not reduce vmin below the reference value."""
-        cbplot = make_colorbar_plot(image)
+        cbplot = ColorbarTestPlot(image)
         cbplot.shift_cmap_vmin(-1.0)
         assert cbplot.axesimage.norm.vmin == cbplot.vmin_ref
 
     def test_shift_vmax_clipped_to_reference(self, image):
         """A vmax shift should not increase vmax above the reference value."""
-        cbplot = make_colorbar_plot(image)
+        cbplot = ColorbarTestPlot(image)
         cbplot.shift_cmap_vmax(1.0)
         assert cbplot.axesimage.norm.vmax == cbplot.vmax_ref
 
     def test_shift_vmin_not_above_vmax(self, image):
         """A vmin shift should not raise vmin above vmax."""
-        cbplot = make_colorbar_plot(image)
+        cbplot = ColorbarTestPlot(image)
         for _ in range(100):
             cbplot.shift_cmap_vmin(0.1)
         assert cbplot.axesimage.norm.vmin < cbplot.axesimage.norm.vmax
 
     def test_shift_vmax_not_below_vmin(self, image):
         """A vmax shift should not lower vmax below vmin."""
-        cbplot = make_colorbar_plot(image)
+        cbplot = ColorbarTestPlot(image)
         for _ in range(100):
             cbplot.shift_cmap_vmax(-0.1)
         assert cbplot.axesimage.norm.vmax > cbplot.axesimage.norm.vmin
 
     def test_shift_toolbar_messages(self, image, recording_toolbar):
         """Colormap limit shifts should generate toolbar messages."""
-        cbplot = make_colorbar_plot(image)
-        toolbar = recording_toolbar
-        cbplot.figure.canvas.toolbar = toolbar
+        cbplot = ColorbarTestPlot(image)
+        cbplot.figure.canvas.toolbar = recording_toolbar
         cbplot.shift_cmap_vmin(0.1)
         cbplot.shift_cmap_vmax(-0.1)
-        assert toolbar.messages[0].startswith("Color map vmin set to")
-        assert toolbar.messages[1].startswith("Color map vmax set to")
+        assert recording_toolbar.messages[0].startswith("Color map vmin set to")
+        assert recording_toolbar.messages[1].startswith("Color map vmax set to")
+
+    def test_scroll_colorbar_lower(self, image):
+        """Scroll in the lower half of the colorbar should shift vmin."""
+        cbplot = ColorbarTestPlot(image)
+        scroll_in_axes(cbplot.cbar_axes, 0.5, 0.25, button="up")
+        assert cbplot.axesimage.norm.vmin == pytest.approx(
+            cbplot.vmin_ref + 0.02 * (cbplot.vmax_ref - cbplot.vmin_ref)
+        )
+
+    def test_scroll_colorbar_upper(self, image):
+        """Scroll in the upper half of the colorbar should shift vmax."""
+        cbplot = ColorbarTestPlot(image)
+        scroll_in_axes(cbplot.cbar_axes, 0.5, 0.75, button="down")
+        assert cbplot.axesimage.norm.vmax == pytest.approx(
+            cbplot.vmax_ref - 0.02 * (cbplot.vmax_ref - cbplot.vmin_ref)
+        )
+
+    def test_cmap_delta(self, image):
+        """The colormap shift fraction should be as specified."""
+        cbplot = ColorbarTestPlot(image, cmap_delta=0.1)
+        assert cbplot.cmap_delta == 0.1
+        scroll_in_axes(cbplot.cbar_axes, 0.5, 0.25, button="up")
+        assert cbplot.axesimage.norm.vmin == pytest.approx(
+            cbplot.vmin_ref + 0.1 * (cbplot.vmax_ref - cbplot.vmin_ref)
+        )
+
+    def test_apply_cmap_vmin(self, image):
+        """A vmin change may be applied without sharing the change."""
+        cbplot = ColorbarTestPlot(image)
+        vrange = cbplot.vmax_ref - cbplot.vmin_ref
+        cbplot.apply_cmap_vmin(0.25)
+        assert cbplot.axesimage.norm.vmin == pytest.approx(
+            cbplot.vmin_ref + 0.25 * vrange
+        )
+
+    def test_apply_cmap_vmax(self, image):
+        """A vmax change may be applied without sharing the change."""
+        cbplot = ColorbarTestPlot(image)
+        vrange = cbplot.vmax_ref - cbplot.vmin_ref
+        cbplot.apply_cmap_vmax(-0.25)
+        assert cbplot.axesimage.norm.vmax == pytest.approx(
+            cbplot.vmax_ref - 0.25 * vrange
+        )
 
     def test_zoom_still_supported(self, image):
-        """Zoom support should be inherited from ZoomablePlot."""
-        cbplot = make_colorbar_plot(image)
+        """Zoom support should be provided by the ZoomMixin base class."""
+        cbplot = ColorbarTestPlot(image)
         xlim_ref = cbplot.xlim_ref
         cbplot.zoom_view(np.mean(xlim_ref), 2.0, 0.5)
         assert np.diff(cbplot.axes.get_xlim()) < np.diff(xlim_ref)

@@ -18,7 +18,7 @@ from matplotlib.colors import LogNorm
 from mpl_toolkits.axes_grid1.axes_divider import AxesDivider
 
 import komplot as kplt
-from komplot import ColorbarEventManager, ImageView, _imview, figure_event_manager
+from komplot import ImageView, _imview, figure_event_manager
 from komplot._imview import _format_coord
 
 
@@ -213,19 +213,25 @@ class TestImview:
         assert iview.figure is fig
         assert plt.get_fignums() == [fig.number]
 
-    def test_event_managers(self, image):
-        """Figure and axes event managers should be attached."""
+    def test_event_manager(self, image):
+        """The plot should be registered with the figure event manager."""
         iview = kplt.imview(image)
         fem = figure_event_manager(iview.figure)
-        axem = fem.get_axevman_for_axes(iview.axes)
-        assert isinstance(axem, ColorbarEventManager)
-        assert axem.plot is iview
+        assert iview.event_manager is fem
+        assert fem.plot_for_axes(iview.axes) is iview
 
-    def test_event_managers_shared_figure(self, image):
-        """A single figure event manager should serve multiple axes."""
+    def test_event_manager_shared_figure(self, image):
+        """A single figure event manager should serve multiple plots."""
         _, ax = plt.subplots(nrows=1, ncols=2)
         iview0 = kplt.imview(image, ax=ax[0])
         iview1 = kplt.imview(image, ax=ax[1])
         fem = figure_event_manager(iview0.figure)
         assert fem is figure_event_manager(iview1.figure)
-        assert fem.get_axevman_for_axes(ax[1]).plot is iview1
+        assert fem.plots == [iview0, iview1]
+
+    def test_feature_support(self, image):
+        """The plot should support colormap range adjustment and zoom."""
+        iview = kplt.imview(image)
+        assert isinstance(iview, (kplt.ColorbarMixin, kplt.ZoomMixin))
+        assert iview.vmin_ref == iview.axesimage.norm.vmin
+        assert iview.xlim_ref == iview.axes.get_xlim()

@@ -97,7 +97,7 @@ Viewer for slices of 3D volumes
     vol = imread("imageio:stent.npz")
     iv = kplt.volview(vol.transpose((1, 2, 0)), slice_axis=0, vmin_quantile=1e-2, cmap="viridis",
 		      show_cbar=True)
-    iv.set_volume_slice(110)
+    iv.slice_index = 110
 
 
 Function :func:`~komplot.volview` provides a viewer for slices of 3D volumes. A `usage example <https://github.com/bwohlberg/komplot/blob/main/examples/volview.py>`__ is available.
@@ -140,6 +140,36 @@ It also provides interactive adjustment/navigation support in addition to the st
 
 
 Note that none of the keyboard shortcuts (including detection of the shift key while the mouse wheel is scrolled) are functional within Jupyter notebooks with the `ipympl <https://matplotlib.org/ipympl/>`__ matplotlib backend.
+
+
+Plot Objects
+============
+
+Each of the plotting functions returns a plot object that provides access to the plot components and to the state of its interactive features. For example, the volume slice displayed by a :func:`~komplot.volview` plot is determined by the :attr:`~komplot.SliceMixin.slice_index` property of the returned object
+
+.. code-block:: python
+
+    iv = kplt.volview(vol)
+    iv.slice_index = 100
+
+and the colormap range of a plot with a colorbar may be adjusted via the
+:meth:`~komplot.ColorbarMixin.shift_cmap_vmin` and :meth:`~komplot.ColorbarMixin.shift_cmap_vmax` methods. The plot object corresponding to an axes may be retrieved via :func:`~komplot.plot_for_axes`, and all the plot objects of a figure via :func:`~komplot.plots`.
+
+
+Sharing plot properties
+^^^^^^^^^^^^^^^^^^^^^^^
+
+The colormap range and the volume slice index may be shared between any number of plots, in the same figure or in different figures, so that a change applied to one of them, whether interactively or programmatically, is applied to all of them
+
+.. code-block:: python
+
+    fig, ax = kplt.subplots(nrows=1, ncols=2)
+    iv0 = kplt.volview(vol, slice_axis=1, show_cbar=True, ax=ax[0])
+    iv1 = kplt.volview(vol, slice_axis=2, show_cbar=True, ax=ax[1])
+    kplt.share_slice([iv0, iv1])
+    kplt.share_cmap([iv0, iv1])
+
+Each call to :func:`~komplot.share_slice` or :func:`~komplot.share_cmap` defines a complete share group, which is returned by the call: a plot that belonged to another group for the same property leaves it, and a group left with fewer than two members is dissolved. Plots may be removed from their groups via :func:`~komplot.unshare_slice` and :func:`~komplot.unshare_cmap`, which accept either plots or a share group. Since the colormap range is shared as a relative shift, plots in a colormap share group are not required to have the same colormap range, but all plots in a slice share group are required to have the same number of slices.
 
 
 Usage Examples

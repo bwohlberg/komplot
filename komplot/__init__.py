@@ -20,18 +20,19 @@ from matplotlib.pyplot import figure, gca, gcf, savefig, subplot, subplots
 # isort: off
 
 from ._contour import contour, ContourPlot
-from ._imview import imview, ImageView
-from ._volview import volview, VolumeView, VolumeViewEventManager
+from ._imview import imview, ImageView, ImageMixin
+from ._volview import volview, VolumeView
 from ._plot import plot, LinePlot
 from ._surface import surface, SurfacePlot
-from ._event import (
-    figure_event_manager,
-    FigureEventManager,
-    AxesEventManager,
-    ZoomEventManager,
-    ColorbarEventManager,
+from ._event import figure_event_manager, FigureEventManager, plots, plot_for_axes
+from ._state import Plot, ZoomMixin, ColorbarMixin, SliceMixin
+from ._share import (
+    ShareGroup,
+    share_cmap,
+    share_slice,
+    unshare_cmap,
+    unshare_slice,
 )
-from ._state import GenericPlot, ZoomablePlot, ColorbarPlot
 from ._misc import close
 from ._ipython import (
     config_notebook_plotting,
@@ -70,15 +71,20 @@ __all__ = [
     "LinePlot",
     "SurfacePlot",
     "VolumeView",
-    "GenericPlot",
-    "ZoomablePlot",
-    "ColorbarPlot",
+    "Plot",
+    "ZoomMixin",
+    "ColorbarMixin",
+    "ImageMixin",
+    "SliceMixin",
+    "share_cmap",
+    "share_slice",
+    "unshare_cmap",
+    "unshare_slice",
+    "ShareGroup",
+    "plots",
+    "plot_for_axes",
     "figure_event_manager",
     "FigureEventManager",
-    "AxesEventManager",
-    "ZoomEventManager",
-    "ColorbarEventManager",
-    "VolumeViewEventManager",
     "set_ipython_plot_backend",
     "set_notebook_plot_backend",
     "config_notebook_plotting",

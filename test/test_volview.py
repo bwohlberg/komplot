@@ -15,7 +15,7 @@ from matplotlib.colors import Normalize
 from matplotlib.widgets import Slider
 
 import komplot as kplt
-from komplot import VolumeView, VolumeViewEventManager, figure_event_manager
+from komplot import VolumeView, figure_event_manager
 
 
 class TestVolview:
@@ -124,17 +124,56 @@ class TestVolview:
         assert vview.figure is fig
         assert plt.get_fignums() == [fig.number]
 
-    def test_event_managers(self, volume):
-        """Figure and axes event managers should be attached."""
+    def test_event_manager(self, volume):
+        """The plot should be registered with the figure event manager."""
         vview = kplt.volview(volume)
         fem = figure_event_manager(vview.figure)
-        axem = fem.get_axevman_for_axes(vview.axes)
-        assert isinstance(axem, VolumeViewEventManager)
-        assert axem.plot is vview
+        assert vview.event_manager is fem
+        assert fem.plot_for_axes(vview.axes) is vview
+
+    def test_feature_support(self, volume):
+        """The plot should support slice selection, colormap, and zoom."""
+        vview = kplt.volview(volume)
+        assert isinstance(vview, (kplt.SliceMixin, kplt.ColorbarMixin, kplt.ZoomMixin))
+        assert vview.num_slices == volume.shape[0]
+        assert vview.vmin_ref == vview.axesimage.norm.vmin
+        assert vview.xlim_ref == vview.axes.get_xlim()
 
 
 class TestSetVolumeSlice:
-    """Tests for method VolumeView.set_volume_slice."""
+    """Tests for volume slice selection."""
+
+    def test_initial_slice(self, volume):
+        """The first slice should initially be displayed."""
+        vview = kplt.volview(volume)
+        assert vview.slice_index == 0
+        np.testing.assert_allclose(vview.axesimage.get_array(), volume[0])
+
+    def test_slice_index_property(self, volume):
+        """Assignment to the slice index property should set the slice."""
+        vview = kplt.volview(volume)
+        vview.slice_index = 2
+        assert vview.slice_index == 2
+        np.testing.assert_allclose(vview.axesimage.get_array(), volume[2])
+        assert vview.slider.val == 2
+
+    @pytest.mark.parametrize("index,expected", [(-2, 0), (100, 4)])
+    def test_slice_index_clipped(self, volume, index, expected):
+        """An out of range slice index should be clipped to the valid range."""
+        vview = kplt.volview(volume)
+        vview.slice_index = index
+        assert vview.slice_index == expected
+
+    def test_apply_volume_slice(self, volume):
+        """A slice may be displayed without sharing the change."""
+        vview = kplt.volview(volume)
+        vview.apply_volume_slice(2)
+        assert vview.slice_index == 2
+        np.testing.assert_allclose(vview.axesimage.get_array(), volume[2])
+
+    def test_no_share_group(self, volume):
+        """A plot should not initially belong to a slice share group."""
+        assert kplt.volview(volume).slice_group is None
 
     def test_set_slice(self, volume):
         """Setting the slice index should update the displayed slice."""

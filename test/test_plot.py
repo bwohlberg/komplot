@@ -14,7 +14,7 @@ import numpy as np
 import pytest
 
 import komplot as kplt
-from komplot import LinePlot, ZoomEventManager, _plot, figure_event_manager
+from komplot import LinePlot, ZoomMixin, _plot, figure_event_manager
 
 
 @pytest.fixture
@@ -207,34 +207,35 @@ class TestPlot:
         assert lplot.figure is fig
         assert plt.get_fignums() == [fig.number]
 
-    def test_event_managers(self, xy):
-        """Figure and axes event managers should be attached."""
+    def test_event_manager(self, xy):
+        """The plot should be registered with the figure event manager."""
         lplot = kplt.plot(*xy)
         fem = figure_event_manager(lplot.figure)
         assert fem.fig is lplot.figure
-        axem = fem.get_axevman_for_axes(lplot.axes)
-        assert isinstance(axem, ZoomEventManager)
-        assert axem.plot is lplot
+        assert lplot.event_manager is fem
+        assert fem.plot_for_axes(lplot.axes) is lplot
 
-    def test_event_managers_shared_figure(self, xy):
-        """A single figure event manager should serve multiple axes."""
+    def test_event_manager_shared_figure(self, xy):
+        """A single figure event manager should serve multiple plots."""
         _, ax = plt.subplots(nrows=1, ncols=2)
         lplot0 = kplt.plot(*xy, ax=ax[0])
         lplot1 = kplt.plot(*xy, ax=ax[1])
-        fem0 = figure_event_manager(lplot0.figure)
-        assert fem0 is figure_event_manager(lplot1.figure)
-        assert fem0.get_axevman_for_axes(ax[0]).plot is lplot0
-        assert fem0.get_axevman_for_axes(ax[1]).plot is lplot1
+        fem = figure_event_manager(lplot0.figure)
+        assert fem is figure_event_manager(lplot1.figure)
+        assert fem.plots == [lplot0, lplot1]
+
+    def test_zoom_support(self, xy):
+        """A line plot should support zoom."""
+        lplot = kplt.plot(*xy)
+        assert isinstance(lplot, ZoomMixin)
+        assert lplot.xlim_ref == lplot.axes.get_xlim()
 
     def test_repeated_plot_in_axes(self, xy):
-        """Repeated plots in the same axes should not attach new managers."""
+        """Repeated plots in the same axes should both be drawn."""
         x, y = xy
         lplot0 = kplt.plot(x, y)
-        axem = figure_event_manager(lplot0.figure).get_axevman_for_axes(lplot0.axes)
         lplot1 = kplt.plot(x, 2 * y, ax=lplot0.axes)
         assert len(lplot1.axes.lines) == 2
-        assert (
-            figure_event_manager(lplot1.figure).get_axevman_for_axes(lplot1.axes)
-            is axem
-        )
-        assert axem.plot is lplot0
+        fem = figure_event_manager(lplot0.figure)
+        assert fem.plots == [lplot0, lplot1]
+        assert fem.plot_for_axes(lplot0.axes) is lplot0

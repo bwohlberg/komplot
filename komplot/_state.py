@@ -5,21 +5,54 @@
 # and user license can be found in the 'LICENSE.txt' file distributed
 # with the package.
 
-"""Plot management classes."""
+"""Plot base class and feature mixin classes.
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, Optional, Tuple, Union
+Each plot type is implemented as a class that combines plot state,
+construction of the matplotlib artists, and handling of the events
+supporting its interactive features. The features themselves are
+provided by mixin classes, each of which contributes state,
+user-callable methods, and event handlers, so that a plot type declares
+the features it supports via its base classes. For example
+
+::
+
+    class VolumeView(SliceMixin, ImageMixin, ColorbarMixin, ZoomMixin, Plot):
+
+declares a plot type supporting slice selection, image display, colormap
+range adjustment, and axis zoom. Mouse scroll events are offered to the
+handlers of each feature in the order in which the mixins are declared,
+the first handler that claims the event terminating the dispatch.
+
+This module defines the plot base class and the feature mixins that are
+not specific to a single plot type; :class:`.ImageMixin`, which supports
+both :class:`.ImageView` and :class:`.VolumeView`, is defined with the
+former.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple, Union
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.axes import Axes
+from matplotlib.backend_bases import Event
 from matplotlib.figure import Figure
+from matplotlib.widgets import Slider
 from mpl_toolkits.axes_grid1.axes_divider import (
     AxesDivider,  # type: ignore[import-untyped]
 )
 
+from ._event import attach_figure_event_manager
+
+if TYPE_CHECKING:
+    from ._share import ShareGroup
+
+
 LogScaleType = Union[bool, Dict[str, Any]]
+
+ScrollHandlerType = Callable[[Event], bool]
 
 
 def log_scale_kwargs(log: LogScaleType) -> Optional[Dict[str, Any]]:
@@ -77,17 +110,57 @@ def figure_and_axes(
     return fig, ax, new_fig
 
 
-@dataclass(repr=False, kw_only=True)
-class GenericPlot:
-    """Generic plot state.
+class Plot:
+    """Base class for all plot types.
 
-    Args:
+    Base class for all plot types, providing the figure and axes of the
+    plot, registration with the event manager of the figure, and dispatch
+    of mouse scroll events to the handlers contributed by feature mixin
+    classes.
+
+    Attributes:
         figure: Plot figure.
         axes: Plot axes.
+        new_figure: ``True`` if the figure was created for this plot.
+        event_manager: Event manager of the plot figure.
     """
 
-    figure: Figure
-    axes: Axes
+    def __init__(self, figure: Figure, axes: Axes, new_figure: bool = False):
+        """
+        Args:
+            figure: Plot figure.
+            axes: Plot axes.
+            new_figure: ``True`` if the figure was created for this plot.
+        """
+        self.figure = figure
+        self.axes = axes
+        self.new_figure = new_figure
+        self._shown = False
+        self.event_manager = attach_figure_event_manager(figure)
+        self.event_manager.register_plot(self)
+
+    def show_new_figure(self):
+        """Show the figure if it was created for this plot.
+
+        Show the figure if it was created for this plot and has not
+        already been shown. It is called at the end of the initializer of
+        each plot type, and has no effect when the plot was drawn in an
+        axes specified by the user.
+        """
+        if self.new_figure and not self._shown:
+            self._shown = True
+            self.figure.show()
+
+    def owns_axes(self, axes: Axes) -> bool:
+        """Determine whether an axes belongs to this plot.
+
+        Args:
+            axes: Axes to test.
+
+        Returns:
+            ``True`` if :code:`axes` belongs to this plot.
+        """
+        return axes is self.axes
 
     def toolbar_message(self, msg: str):
         """Display message in toolbar if present.
@@ -98,27 +171,106 @@ class GenericPlot:
         if self.axes.figure.canvas.toolbar is not None:
             self.axes.figure.canvas.toolbar.set_message(msg)
 
+    def scroll_handlers(self) -> Tuple[ScrollHandlerType, ...]:
+        """Get the mouse scroll event handlers of this plot.
 
-@dataclass(repr=False, kw_only=True)
-class ZoomablePlot(GenericPlot):
-    """State for a plot supporting axis zoom.
+        Each feature mixin class extends the tuple returned by this
+        method with its own handler, in order of declaration of the mixin
+        classes.
 
-    Args:
-        figure: Plot figure.
-        axes: Plot axes.
+        Returns:
+            Tuple of scroll event handlers.
+        """
+        return ()
+
+    def handle_scroll(self, event: Event) -> bool:
+        """Offer a mouse scroll event to the handlers of this plot.
+
+        The event is offered to each handler in turn, terminating when
+        one of them claims it.
+
+        Args:
+            event: Mouse scroll event.
+
+        Returns:
+            ``True`` if the event was claimed by a handler.
+        """
+        for handler in self.scroll_handlers():
+            if handler(event):
+                return True
+        return False
+
+
+class ZoomMixin:
+    """Mixin class providing axis zoom via mouse wheel scroll.
+
+    Mouse wheel scroll in the plot axes, without any modifier key
+    depressed, zooms in or out at the cursor location, the axis limits
+    being constrained to those recorded on initialization.
+
+    Attributes:
+        zoom_scale: Scaling factor for mouse wheel zoom.
+        xlim_ref: Reference x-axis limits.
+        ylim_ref: Reference y-axis limits.
     """
 
-    xlim_ref: Tuple[float, float] = field(init=False)
-    ylim_ref: Tuple[float, float] = field(init=False)
+    axes: Axes
+    event_manager: Any
+    zoom_scale: float
+    xlim_ref: Tuple[float, float]
+    ylim_ref: Tuple[float, float]
 
-    def __post_init__(self):
-        """Initialize axis limit record.
+    def init_zoom(self, zoom_scale: float = 2.0):
+        """Initialize zoom support.
 
-        Initalize :code:`xlim_ref` and :code:`ylim_ref` attributes from
-        axes limits on initialization.
+        Record the current axis limits as the reference limits, and
+        connect the axis limit change callbacks. It should be called
+        after the plot content determining the axis limits has been
+        drawn.
+
+        Args:
+            zoom_scale: Scaling factor for mouse wheel zoom.
         """
+        self.zoom_scale = zoom_scale
         self.xlim_ref = self.axes.get_xlim()
         self.ylim_ref = self.axes.get_ylim()
+        self.axes.callbacks.connect("xlim_changed", self._xylim_changed_handler)
+        self.axes.callbacks.connect("ylim_changed", self._xylim_changed_handler)
+
+    def scroll_handlers(self) -> Tuple[ScrollHandlerType, ...]:
+        """Prepend the zoom handler to the scroll event handlers."""
+        return (self._scroll_zoom_handler,) + super().scroll_handlers()  # type: ignore[misc]
+
+    def _scroll_zoom_handler(self, event: Event) -> bool:
+        """Handle a mouse scroll event as an axis zoom.
+
+        Args:
+            event: Mouse scroll event.
+
+        Returns:
+            ``True`` if the event was claimed as a zoom.
+        """
+        assert hasattr(event, "inaxes") and hasattr(event, "button")
+        assert hasattr(event, "xdata") and hasattr(event, "ydata")
+        if event.inaxes is not self.axes:
+            return False
+        if any(self.event_manager.key_pressed.values()):  # modifier key depressed
+            return False
+        if event.button == "up":  # zoom in
+            scale_factor = 1.0 / self.zoom_scale
+        elif event.button == "down":  # zoom out
+            scale_factor = self.zoom_scale
+        else:
+            return False
+        # Ensure cursor is over valid region of plot
+        if event.xdata is None or event.ydata is None:
+            return False
+        self.zoom_view(event.xdata, event.ydata, scale_factor)
+        return True
+
+    def _xylim_changed_handler(self, axes: Axes):
+        """Callback for changes to axes limits."""
+        self.zoom_toolbar_message()
 
     def zoom_view(self, xdata: float, ydata: float, scale_factor: float):
         """Zoom the view in this axes.
@@ -191,41 +343,175 @@ class ZoomablePlot(GenericPlot):
         if ylim[0] > ylim[1]:
             ylim = ylim[::-1]
         msg = f"Zoom to [{ylim[0]:.1f}:{ylim[1]:.1f}, {xlim[0]:.1f}:{xlim[1]:.1f}]"
-        self.toolbar_message(msg)
+        self.toolbar_message(msg)  # type: ignore[attr-defined]
 
 
-@dataclass(repr=False, kw_only=True)
-class ColorbarPlot(ZoomablePlot):
-    """State of plot supporting axis zoom and a colorbar.
+class ColorbarMixin:
+    """Mixin class providing colormap range adjustment via mouse wheel scroll.
 
-    Args:
-        figure: Plot figure.
-        axes: Plot axes.
-        axesimage: The :class:`~matplotlib.image.AxesImage` associated with the
-           colorbar.
+    Mouse wheel scroll in the bottom/left half of the colorbar adjusts
+    the colormap :code:`vmin`, and scroll in the top/right half adjusts
+    the colormap :code:`vmax`, the limits being constrained to those
+    recorded on initialization. If the plot belongs to a colormap share
+    group (see :func:`komplot.share_cmap`), the adjustment is applied to
+    every member of the group.
+
+    Attributes:
+        axesimage: The :class:`~matplotlib.image.AxesImage` associated
+           with the colorbar.
         divider: The :class:`~mpl_toolkits.axes_grid1.axes_divider.AxesDivider`
            used to create axes for the colorbar.
-        cbar_axes: The axes of the colorbar.
+        cbar_axes: The axes of the colorbar, or ``None`` if there is no
+           colorbar.
+        cmap_delta: Fraction of colormap range for vmin/vmax shifts.
+        vmin_ref: Reference colormap :code:`vmin`.
+        vmax_ref: Reference colormap :code:`vmax`.
     """
 
     axesimage: mpl.image.AxesImage
-    divider: AxesDivider
+    divider: Optional[AxesDivider]
     cbar_axes: Optional[Axes]
-    vmin_ref: float = field(init=False)
-    vmax_ref: float = field(init=False)
+    cmap_delta: float
+    vmin_ref: float
+    vmax_ref: float
+    _cmap_group: Optional[ShareGroup] = None
 
-    def __post_init__(self):
-        """Initialize colormap limits record.
+    def init_colorbar(
+        self,
+        axesimage: mpl.image.AxesImage,
+        divider: Optional[AxesDivider] = None,
+        cbar_axes: Optional[Axes] = None,
+        cmap_delta: float = 0.02,
+    ):
+        """Initialize colorbar support.
 
-        Initalize :code:`vmin_ref` and :code:`vmax_ref` attributes from
-        colormap limits on initialization.
+        Record the colorbar artists and the current colormap limits as
+        the reference limits.
+
+        Args:
+            axesimage: The :class:`~matplotlib.image.AxesImage`
+               associated with the colorbar.
+            divider: The axes divider used to create axes for the
+               colorbar.
+            cbar_axes: The axes of the colorbar.
+            cmap_delta: Fraction of colormap range for vmin/vmax shifts.
         """
-        self.vmin_ref = self.axesimage.norm.vmin
-        self.vmax_ref = self.axesimage.norm.vmax
-        super().__post_init__()
+        self.axesimage = axesimage
+        self.divider = divider
+        self.cbar_axes = cbar_axes
+        self.cmap_delta = cmap_delta
+        vmin, vmax = axesimage.norm.vmin, axesimage.norm.vmax
+        assert vmin is not None and vmax is not None
+        self.vmin_ref, self.vmax_ref = float(vmin), float(vmax)
+        self._cmap_group = None
+
+    @property
+    def cmap_group(self) -> Optional[ShareGroup]:
+        """The colormap share group of this plot, if any."""
+        return self._cmap_group
+
+    def owns_axes(self, axes: Axes) -> bool:
+        """Determine whether an axes belongs to this plot."""
+        if self.cbar_axes is not None and axes is self.cbar_axes:
+            return True
+        return super().owns_axes(axes)  # type: ignore[misc]
+
+    def scroll_handlers(self) -> Tuple[ScrollHandlerType, ...]:
+        """Prepend the colormap handler to the scroll event handlers."""
+        return (self._scroll_cmap_handler,) + super().scroll_handlers()  # type: ignore[misc]
+
+    def _scroll_cmap_handler(self, event: Event) -> bool:
+        """Handle a mouse scroll event as a colormap range adjustment.
+
+        Args:
+            event: Mouse scroll event.
+
+        Returns:
+            ``True`` if the event was claimed as a colormap adjustment.
+        """
+        assert hasattr(event, "button")
+        rel_pos = self._cbar_event_rel_pos(event)
+        if rel_pos is None:
+            return False
+        if event.button == "up":
+            sign = 1
+        elif event.button == "down":
+            sign = -1
+        else:
+            return False
+        if rel_pos < 0.5:
+            self.shift_cmap_vmin(sign * self.cmap_delta)
+        elif rel_pos > 0.5:
+            self.shift_cmap_vmax(sign * self.cmap_delta)
+        return True
+
+    def _cbar_event_rel_pos(self, event: Event) -> Optional[float]:
+        """Determine relative position of an event in the colorbar.
+
+        Args:
+            event: Mouse event.
+
+        Returns:
+            Position of the event within the colorbar, as a fraction of
+            its extent, or ``None`` if the event did not occur in the
+            colorbar.
+        """
+        assert hasattr(event, "inaxes") and hasattr(event, "x") and hasattr(event, "y")
+        if self.cbar_axes is None or event.inaxes is not self.cbar_axes:
+            return None
+        box = self.cbar_axes.get_window_extent().bounds
+        if (
+            self.cbar_axes._colorbar.orientation  # type: ignore[attr-defined]  # pylint: disable=W0212
+            == "vertical"
+        ):
+            rel_pos = (event.y - box[1]) / box[3]
+        else:
+            rel_pos = (event.x - box[0]) / box[2]
+        return rel_pos
+
+    def _cmap_apply(self, method: str, *args):
+        """Apply a colormap adjustment to this plot or to its share group.
+
+        Args:
+            method: Name of the method to apply.
+            *args: Arguments of the method.
+        """
+        if self._cmap_group is None:
+            getattr(self, method)(*args)
+        else:
+            self._cmap_group.broadcast(method, *args)
 
     def shift_cmap_vmin(self, rel_delta: float):
         """Change colormap :code:`vmin`.
+
+        Change the colormap :code:`vmin` of this plot, clipping it to the
+        reference range. If the plot belongs to a colormap share group,
+        the change is applied to every member of the group.
+
+        Args:
+            rel_delta: Signed relative change in colormap :code:`vmin`
+                value.
+        """
+        self._cmap_apply("apply_cmap_vmin", rel_delta)
+
+    def shift_cmap_vmax(self, rel_delta: float):
+        """Change colormap :code:`vmax`.
+
+        Change the colormap :code:`vmax` of this plot, clipping it to the
+        reference range. If the plot belongs to a colormap share group,
+        the change is applied to every member of the group.
+
+        Args:
+            rel_delta: Signed relative change in colormap :code:`vmax`
+                value.
+        """
+        self._cmap_apply("apply_cmap_vmax", rel_delta)
+
+    def apply_cmap_vmin(self, rel_delta: float):
+        """Change the colormap :code:`vmin` of this plot only.
+
+        Change the colormap :code:`vmin` of this plot, without applying
+        the change to the colormap share group of the plot, if any.
 
         Args:
             rel_delta: Signed relative change in colormap :code:`vmin`
@@ -240,13 +526,16 @@ class ColorbarPlot(ZoomablePlot):
             new_vmin = self.vmin_ref
         if new_vmin < im.norm.vmax:
             im.set_clim(vmin=new_vmin)
-        self.axes.figure.canvas.draw_idle()
+        self.axes.figure.canvas.draw_idle()  # type: ignore[attr-defined]
 
         msg = f"Color map vmin set to {im.norm.vmin:.1f}"
-        self.toolbar_message(msg)
+        self.toolbar_message(msg)  # type: ignore[attr-defined]
 
-    def shift_cmap_vmax(self, rel_delta: float):
-        """Change colormap :code:`vmax`.
+    def apply_cmap_vmax(self, rel_delta: float):
+        """Change the colormap :code:`vmax` of this plot only.
+
+        Change the colormap :code:`vmax` of this plot, without applying
+        the change to the colormap share group of the plot, if any.
 
         Args:
             rel_delta: Signed relative change in colormap :code:`vmax`
@@ -261,7 +550,168 @@ class ColorbarPlot(ZoomablePlot):
             new_vmax = self.vmax_ref
         if new_vmax > im.norm.vmin:
             im.set_clim(vmax=new_vmax)
-        self.axes.figure.canvas.draw_idle()
+        self.axes.figure.canvas.draw_idle()  # type: ignore[attr-defined]
 
         msg = f"Color map vmax set to {im.norm.vmax:.1f}"
-        self.toolbar_message(msg)
+        self.toolbar_message(msg)  # type: ignore[attr-defined]
+
+
+class SliceMixin:
+    """Mixin class providing volume slice selection.
+
+    Mouse wheel scroll in the plot axes with the shift key depressed, or
+    manipulation of the slice selection slider widget, changes the
+    displayed slice of a volume. If the plot belongs to a slice share
+    group (see :func:`komplot.share_slice`), the change is applied to
+    every member of the group.
+
+    Attributes:
+        volume: The volume array, with the slice axis in the leading
+           position.
+        slider_axes: The axes of the slice selection slider, or ``None``
+           if there is no slider.
+        slider: The slice selection slider widget, or ``None`` if there
+           is no slider.
+    """
+
+    volume: np.ndarray
+    slider_axes: Optional[Axes]
+    slider: Optional[Slider]
+    _slice_index: int = 0
+    _slice_group: Optional[ShareGroup] = None
+
+    def init_slice(
+        self,
+        volume: np.ndarray,
+        slider_axes: Optional[Axes] = None,
+        slider: Optional[Slider] = None,
+    ):
+        """Initialize slice selection support.
+
+        Args:
+            volume: The volume array, with the slice axis in the leading
+               position.
+            slider_axes: The axes of the slice selection slider.
+            slider: The slice selection slider widget.
+        """
+        self.volume = volume
+        self.slider_axes = slider_axes
+        self.slider = slider
+        self._slice_index = 0
+        self._slice_group = None
+        if slider is not None:
+            slider.on_changed(self._slider_changed_handler)
+
+    @property
+    def num_slices(self) -> int:
+        """The number of slices of the volume."""
+        return self.volume.shape[0]
+
+    @property
+    def slice_index(self) -> int:
+        """The index of the displayed volume slice.
+
+        Assignment to this property displays the specified slice,
+        clipping the index to the valid range, and applies the change to
+        the slice share group of the plot, if any.
+        """
+        return self._slice_index
+
+    @slice_index.setter
+    def slice_index(self, index: int):
+        self.set_volume_slice(index)
+
+    @property
+    def slice_group(self) -> Optional[ShareGroup]:
+        """The slice share group of this plot, if any."""
+        return self._slice_group
+
+    def owns_axes(self, axes: Axes) -> bool:
+        """Determine whether an axes belongs to this plot."""
+        if self.slider_axes is not None and axes is self.slider_axes:
+            return True
+        return super().owns_axes(axes)  # type: ignore[misc]
+
+    def scroll_handlers(self) -> Tuple[ScrollHandlerType, ...]:
+        """Prepend the slice shift handler to the scroll event handlers."""
+        return (self._scroll_slice_handler,) + super().scroll_handlers()  # type: ignore[misc]
+
+    def _scroll_slice_handler(self, event: Event) -> bool:
+        """Handle a mouse scroll event as a slice shift.
+
+        Args:
+            event: Mouse scroll event.
+
+        Returns:
+            ``True`` if the event was claimed as a slice shift.
+        """
+        assert hasattr(event, "inaxes") and hasattr(event, "button")
+        if event.inaxes is not self.axes:  # type: ignore[attr-defined]
+            return False
+        if not self.event_manager.key_pressed["shift"]:  # type: ignore[attr-defined]
+            return False
+        if event.button == "up":
+            index = self._slice_index + 1
+        elif event.button == "down":
+            index = self._slice_index - 1
+        else:
+            return False
+        self.set_volume_slice(index, update_slider=True, suppress_events=True)
+        return True
+
+    def _slider_changed_handler(self, val: float):
+        """Callback for slice selection slider changes."""
+        self.set_volume_slice(int(val), update_slider=True, suppress_events=True)
+
+    def set_volume_slice(
+        self, index: int, update_slider: bool = True, suppress_events: bool = False
+    ):
+        """Set the volume slice index.
+
+        Set the volume slice index, clipping it to the valid range. If
+        the plot belongs to a slice share group, the change is applied to
+        every member of the group.
+
+        Args:
+            index: Index of volume slice to display.
+            update_slider: If ``True`` also update the volume slice
+              selection sider widget to the selected index.
+            suppress_events: If ``True``, suppress events generated by
+              the slider update.
+        """
+        index = int(min(max(index, 0), self.num_slices - 1))
+        if self._slice_group is None:
+            self.apply_volume_slice(index, update_slider, suppress_events)
+        else:
+            self._slice_group.broadcast(
+                "apply_volume_slice", index, update_slider, True
+            )
+
+    def apply_volume_slice(
+        self, index: int, update_slider: bool = True, suppress_events: bool = False
+    ):
+        """Display a volume slice in this plot only.
+
+        Display the specified volume slice in this plot, without applying
+        the change to the slice share group of the plot, if any.
+
+        Args:
+            index: Index of volume slice to display.
+            update_slider: If ``True`` also update the volume slice
+              selection sider widget to the selected index.
+            suppress_events: If ``True``, suppress events generated by
+              the slider update.
+        """
+        self._slice_index = index
+        if self.slider is not None and update_slider:
+            if suppress_events:
+                self.slider.eventson = False
+            self.slider.set_val(self._slice_index)
+            if suppress_events:
+                self.slider.eventson = True
+        im = self.axesimage  # type: ignore[attr-defined]
+        im.set_data(self.volume[self._slice_index])
+        self.axes.figure.canvas.draw_idle()  # type: ignore[attr-defined]
+
+        msg = f"Slice index {self._slice_index} of {self.volume.shape[0]}"
+        self.toolbar_message(msg)  # type: ignore[attr-defined]
