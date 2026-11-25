@@ -16,7 +16,7 @@ from matplotlib.axes import Axes
 from matplotlib.colors import Colormap
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection  # type: ignore[import-untyped]
 
-from ._event import FigureEventManager
+from ._event import attach_event_managers
 from ._state import GenericPlot, figure_and_axes
 
 
@@ -151,7 +151,6 @@ def surface(
 
     surfplot = SurfacePlot(figure=fig, axes=ax, poly3dc=poly3dc, qcntset=qcntset)
 
-    if not hasattr(fig, "_event_manager"):
-        FigureEventManager(fig)  # constructed object attaches itself to fig
+    attach_event_managers(fig, ax, surfplot)
 
     return surfplot

@@ -20,7 +20,7 @@ from matplotlib.pyplot import figure, gca, gcf, savefig, subplot, subplots
 # isort: off
 
 from ._contour import contour, ContourPlot
-from ._imview import imview, ImageView, ImageViewEventManager
+from ._imview import imview, ImageView
 from ._volview import volview, VolumeView, VolumeViewEventManager
 from ._plot import plot, LinePlot
 from ._surface import surface, SurfacePlot
@@ -78,7 +78,6 @@ __all__ = [
     "AxesEventManager",
     "ZoomEventManager",
     "ColorbarEventManager",
-    "ImageViewEventManager",
     "VolumeViewEventManager",
     "set_ipython_plot_backend",
     "set_notebook_plot_backend",

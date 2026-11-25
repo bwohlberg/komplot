@@ -13,7 +13,7 @@ from typing import List, Literal, Optional, Sequence, Tuple, Union
 import matplotlib as mpl
 from matplotlib.axes import Axes
 
-from ._event import FigureEventManager, ZoomEventManager, figure_event_manager
+from ._event import ZoomEventManager, attach_event_managers
 from ._state import LogScaleType, ZoomablePlot, figure_and_axes, log_scale_kwargs
 
 try:
@@ -156,11 +156,6 @@ def plot(
 
     lineplot = LinePlot(figure=fig, axes=ax, line2d=line2d)
 
-    if not hasattr(fig, "_event_manager"):
-        fem = FigureEventManager(fig)  # constructed object attaches itself to fig
-    else:
-        fem = figure_event_manager(fig)
-    if not hasattr(ax, "_event_manager"):
-        ZoomEventManager(ax, fem, lineplot)  # constructed object attaches itself to ax
+    attach_event_managers(fig, ax, lineplot, ZoomEventManager)
 
     return lineplot

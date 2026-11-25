@@ -19,8 +19,8 @@ from mpl_toolkits.axes_grid1.axes_divider import (
     AxesDivider,  # type: ignore[import-untyped]
 )
 
-from ._event import FigureEventManager, figure_event_manager
-from ._imview import ImageView, ImageViewEventManager, _image_view
+from ._event import ColorbarEventManager, FigureEventManager, attach_event_managers
+from ._imview import ImageView, _image_view
 
 
 @dataclass(repr=False, kw_only=True)
@@ -76,7 +76,7 @@ class VolumeView(ImageView):
         self.toolbar_message(msg)
 
 
-class VolumeViewEventManager(ImageViewEventManager):
+class VolumeViewEventManager(ColorbarEventManager):
     """Manager for axes-based events.
 
     Manage mouse scroll and slider widget events. The following
@@ -330,13 +330,6 @@ def volview(
         slider=vol_slider,
     )
 
-    if not hasattr(fig, "_event_manager"):
-        fem = FigureEventManager(fig)  # constructed object attaches itself to fig
-    else:
-        fem = figure_event_manager(fig)
-    if not hasattr(ax, "_event_manager"):
-        VolumeViewEventManager(
-            ax, fem, vlvw
-        )  # constructed object attaches itself to ax
+    attach_event_managers(fig, ax, vlvw, VolumeViewEventManager)
 
     return vlvw

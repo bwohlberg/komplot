@@ -18,7 +18,7 @@ from matplotlib.colors import LogNorm
 from mpl_toolkits.axes_grid1.axes_divider import AxesDivider
 
 import komplot as kplt
-from komplot import ImageView, ImageViewEventManager, _imview, figure_event_manager
+from komplot import ColorbarEventManager, ImageView, _imview, figure_event_manager
 from komplot._imview import _format_coord
 
 
@@ -218,7 +218,7 @@ class TestImview:
         iview = kplt.imview(image)
         fem = figure_event_manager(iview.figure)
         axem = fem.get_axevman_for_axes(iview.axes)
-        assert isinstance(axem, ImageViewEventManager)
+        assert isinstance(axem, ColorbarEventManager)
         assert axem.plot is iview
 
     def test_event_managers_shared_figure(self, image):

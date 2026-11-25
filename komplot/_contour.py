@@ -17,7 +17,7 @@ from matplotlib.axes import Axes
 from matplotlib.colors import Colormap
 from mpl_toolkits.axes_grid1 import make_axes_locatable  # type: ignore[import-untyped]
 
-from ._event import ColorbarEventManager, FigureEventManager, figure_event_manager
+from ._event import ColorbarEventManager, attach_event_managers
 from ._state import ColorbarPlot, LogScaleType, figure_and_axes, log_scale_kwargs
 
 
@@ -181,11 +181,6 @@ def contour(
         qcntset=qcntset,
     )
 
-    if not hasattr(fig, "_event_manager"):
-        fem = FigureEventManager(fig)  # constructed object attaches itself to fig
-    else:
-        fem = figure_event_manager(fig)
-    if not hasattr(ax, "_event_manager"):
-        ColorbarEventManager(ax, fem, cplot)  # constructed object attaches itself to ax
+    attach_event_managers(fig, ax, cplot, ColorbarEventManager)
 
     return cplot

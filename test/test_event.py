@@ -24,7 +24,6 @@ from komplot import (
     AxesEventManager,
     ColorbarEventManager,
     FigureEventManager,
-    ImageViewEventManager,
     VolumeViewEventManager,
     ZoomEventManager,
     figure_event_manager,
@@ -191,7 +190,6 @@ class TestAxesEventManager:
         assert axem.fig_event_man is fem
         assert axem.plot is line_plot
         assert fem.get_axevman_for_axes(ax) is axem
-        assert ax._event_manager is axem
 
     def test_duplicate_attach(self, line_plot):
         """Attaching a second manager to an axes should raise an exception."""
@@ -355,7 +353,6 @@ class TestColorbarEventManager:
         "manager_class,plot_name",
         [
             (ColorbarEventManager, "image_view"),
-            (ImageViewEventManager, "image_view"),
             (VolumeViewEventManager, "volume_view"),
         ],
     )

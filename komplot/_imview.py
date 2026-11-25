@@ -21,7 +21,7 @@ from mpl_toolkits.axes_grid1.axes_divider import (
     AxesDivider,  # type: ignore[import-untyped]
 )
 
-from ._event import ColorbarEventManager, FigureEventManager, figure_event_manager
+from ._event import ColorbarEventManager, attach_event_managers
 from ._state import ColorbarPlot, figure_and_axes
 
 try:
@@ -45,50 +45,6 @@ class ImageView(ColorbarPlot):
            used to create axes for the colorbar.
         cbar_axes: The axes of the colorbar.
     """
-
-
-class ImageViewEventManager(ColorbarEventManager):
-    """Manager for axes-based events.
-
-    Manage mouse scroll and slider widget events. The following
-    interactive features are supported:
-
-    *Mouse wheel scroll*
-       Zoom in or out at current cursor location.
-
-    *Mouse wheel scroll in bottom half of colorbar*
-       Increase or decrease colormap :code:`vmin`.
-
-    *Mouse wheel scroll in top half of colorbar*
-       Increase or decrease colormap :code:`vmax`.
-    """
-
-    plot: ImageView
-
-    def __init__(
-        self,
-        axes: Axes,
-        fig_event_man: FigureEventManager,
-        iview: ImageView,
-        zoom_scale: float = 2.0,
-        cmap_delta: float = 0.02,
-    ):
-        """
-        Args:
-            axes: Axes to which this manager is attached.
-            fig_event_man: The figure event manage for the figure to
-               which :code:`axes` belong.
-            iview: A plot state of type :class:`ImageView`.
-            zoom_scale: Scaling factor for mouse wheel zoom.
-            cmap_delta: Fraction of colormap range for vmin/vmax shifts.
-        """
-        super().__init__(
-            axes,
-            fig_event_man,
-            iview,
-            zoom_scale=zoom_scale,
-            cmap_delta=cmap_delta,
-        )
 
 
 def _format_coord(x: float, y: float, image: np.ndarray) -> str:
@@ -257,7 +213,7 @@ def imview(
       :meth:`~matplotlib.figure.Figure.show` is called after drawing the
       plot.
     - Interactive features provided by :class:`FigureEventManager` and
-      :class:`ImageViewEventManager` are supported in addition to the
+      :class:`ColorbarEventManager` are supported in addition to the
       standard `matplotlib <https://matplotlib.org/>`__
       `interactive features <https://matplotlib.org/stable/users/explain/figure/interactive.html#interactive-navigation>`__.
 
@@ -333,11 +289,6 @@ def imview(
         figure=fig, axes=ax, axesimage=axim, divider=divider, cbar_axes=cax
     )
 
-    if not hasattr(fig, "_event_manager"):
-        fem = FigureEventManager(fig)  # constructed object attaches itself to fig
-    else:
-        fem = figure_event_manager(fig)
-    if not hasattr(ax, "_event_manager"):
-        ImageViewEventManager(ax, fem, imvw)  # constructed object attaches itself to ax
+    attach_event_managers(fig, ax, imvw, ColorbarEventManager)
 
     return imvw

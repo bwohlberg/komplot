@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Union
+from typing import Dict, List, Optional, Type, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -158,6 +158,36 @@ class FigureEventManager:
         return None
 
 
+def attach_event_managers(
+    fig: Figure,
+    axes: Axes,
+    plot: GenericPlot,
+    axes_manager_class: Optional[Type[AxesEventManager]] = None,
+) -> FigureEventManager:
+    """Attach the event managers for a newly constructed plot.
+
+    Get the event manager of :code:`fig`, constructing one if it does not
+    have one, and attach an axes event manager of the specified class to
+    :code:`axes` if it does not already have one.
+
+    Args:
+        fig: Figure of the plot.
+        axes: Axes of the plot.
+        plot: Plot state object.
+        axes_manager_class: Class of the axes event manager to attach, or
+            ``None`` if the plot requires no axes event manager.
+
+    Returns:
+        The figure event manager of :code:`fig`.
+    """
+    fem = FigureEventManager.attached_manager(fig)
+    if fem is None:
+        fem = FigureEventManager(fig)  # constructed object attaches itself to fig
+    if axes_manager_class is not None and fem.get_axevman_for_axes(axes) is None:
+        axes_manager_class(axes, fem, plot)  # constructed object attaches itself
+    return fem
+
+
 def figure_event_manager(fig: Figure, error: bool = True) -> FigureEventManager:
     """Get the figure event manager attached to a figure.
 
@@ -189,6 +219,8 @@ class AxesEventManager:
                which :code:`axes` belong.
             plot: A plot state object.
         """
+        if fig_event_man.get_axevman_for_axes(axes) is not None:
+            raise RuntimeError(f"Axes {axes} already has an event manager attached.")
         self.axes = axes
         self.fig_event_man = fig_event_man
         self.plot = plot
@@ -197,10 +229,6 @@ class AxesEventManager:
         # See https://github.com/matplotlib/ipympl/issues/240 and
         #     https://github.com/matplotlib/ipympl/pull/235
         fig_event_man.fig.canvas.capture_scroll = True  # type: ignore[attr-defined]
-
-        if hasattr(axes, "_event_manager"):
-            raise RuntimeError(f"Axes {axes} already has an event manager attached.")
-        axes._event_manager = self  # type: ignore[attr-defined]
 
 
 class ZoomEventManager(AxesEventManager):
