@@ -527,10 +527,10 @@ class TestColorbarMixin:
         cbplot = AutoscaledColorbarTestPlot((16.0 * image).astype(dtype))
         vrange = cbplot.vmax_ref - cbplot.vmin_ref
         cbplot.shift_cmap_vmin(0.25)
+        assert cbplot.cmap_limits[0] == pytest.approx(cbplot.vmin_ref + 0.25 * vrange)
+        span = cbplot.cmap_limits[1] - cbplot.cmap_limits[0]
         cbplot.shift_cmap_vmax(-0.25)
-        assert cbplot.cmap_limits == pytest.approx(
-            (cbplot.vmin_ref + 0.25 * vrange, cbplot.vmax_ref - 0.25 * vrange)
-        )
+        assert cbplot.cmap_limits[1] == pytest.approx(cbplot.vmax_ref - 0.25 * span)
 
     @pytest.mark.parametrize("dtype", ["uint8", "int32"])
     def test_scroll_autoscaled_integer_limits(self, image, dtype):
@@ -538,10 +538,10 @@ class TestColorbarMixin:
         cbplot = AutoscaledColorbarTestPlot((16.0 * image).astype(dtype))
         vrange = cbplot.vmax_ref - cbplot.vmin_ref
         scroll_in_axes(cbplot.cbar_axes, 0.5, 0.25, button="up")
+        assert cbplot.cmap_limits[0] == pytest.approx(cbplot.vmin_ref + 0.02 * vrange)
+        span = cbplot.cmap_limits[1] - cbplot.cmap_limits[0]
         scroll_in_axes(cbplot.cbar_axes, 0.5, 0.75, button="down")
-        assert cbplot.cmap_limits == pytest.approx(
-            (cbplot.vmin_ref + 0.02 * vrange, cbplot.vmax_ref - 0.02 * vrange)
-        )
+        assert cbplot.cmap_limits[1] == pytest.approx(cbplot.vmax_ref - 0.02 * span)
 
     def test_bounds_default_to_reference_limits(self, image):
         """The adjustment bounds should default to the reference limits."""
@@ -608,11 +608,82 @@ class TestColorbarMixin:
         cbplot.shift_cmap_vmax(100.0)
         assert cbplot.cmap_limits[1] == cbplot.vmax_bound == image.max()
 
-    def test_shift_size_relative_to_reference_range(self, image):
-        """A shift should be relative to the reference colormap range."""
+    def test_shift_size_relative_to_current_range(self, image):
+        """A shift should be relative to the current colormap range."""
         cbplot = ClippedColorbarTestPlot(image, 10.0, 20.0)
         scroll_in_axes(cbplot.cbar_axes, 0.5, 0.25, button="down")
         assert cbplot.cmap_limits[0] == pytest.approx(10.0 - 0.02 * 10.0)
+
+    def test_widening_shifts_accelerate(self, image):
+        """Successive widening shifts should grow with the range."""
+        cbplot = ClippedColorbarTestPlot(image, 10.0, 20.0)
+        cbplot.shift_cmap_vmax(0.5)  # range 10.0 -> 15.0
+        assert cbplot.cmap_limits == pytest.approx((10.0, 25.0))
+        cbplot.shift_cmap_vmax(0.5)  # range 15.0 -> 22.5
+        assert cbplot.cmap_limits == pytest.approx((10.0, 32.5))
+
+    def test_narrowing_shifts_decelerate(self, image):
+        """Successive narrowing shifts should shrink with the range."""
+        cbplot = ClippedColorbarTestPlot(image, 10.0, 20.0)
+        cbplot.shift_cmap_vmin(0.5)  # range 10.0 -> 5.0
+        assert cbplot.cmap_limits == pytest.approx((15.0, 20.0))
+        cbplot.shift_cmap_vmin(0.5)  # range 5.0 -> 2.5
+        assert cbplot.cmap_limits == pytest.approx((17.5, 20.0))
+
+    def test_minimum_span_default(self, image):
+        """The minimum colormap range should be a fraction of the initial one."""
+        cbplot = ClippedColorbarTestPlot(image, 10.0, 20.0)
+        assert cbplot.cmap_span_min == pytest.approx(1e-3 * 10.0)
+
+    def test_narrowing_limited_to_minimum_span(self, image):
+        """Repeated narrowing should not reduce the range below the minimum.
+
+        Since each shift is proportional to the current colormap range,
+        repeated narrowing would otherwise drive the range towards zero,
+        at which point matplotlib expands it again, with erratic
+        results.
+        """
+        cbplot = ClippedColorbarTestPlot(image, 10.0, 20.0)
+        for _ in range(40):
+            cbplot.shift_cmap_vmin(0.5)
+            cbplot.shift_cmap_vmax(-0.5)
+        vmin, vmax = cbplot.cmap_limits
+        assert vmax - vmin == pytest.approx(cbplot.cmap_span_min)
+        assert 10.0 < vmin < vmax < 20.0
+
+    def test_narrowing_limited_to_specified_minimum_span(self, image):
+        """The minimum colormap range should be settable by the user."""
+        cbplot = ClippedColorbarTestPlot(image, 10.0, 20.0)
+        cbplot.cmap_span_min = 1.0
+        for _ in range(20):
+            cbplot.shift_cmap_vmin(0.5)
+        assert cbplot.cmap_limits == pytest.approx((19.0, 20.0))
+
+    def test_widening_to_bound_from_minimum_span(self, image):
+        """A range narrowed to the minimum should be able to widen again."""
+        cbplot = ClippedColorbarTestPlot(image, 10.0, 20.0)
+        for _ in range(40):
+            cbplot.shift_cmap_vmin(0.5)
+        for _ in range(40):
+            cbplot.shift_cmap_vmin(-0.5)
+        assert cbplot.cmap_limits[0] == cbplot.vmin_bound
+
+    def test_bound_reached_in_bounded_number_of_shifts(self, image):
+        """Traversal of the adjustment range should not depend on its size.
+
+        Since each shift is proportional to the current colormap range,
+        the number of shifts required to widen the range from the
+        initial limits to the bounds depends on their ratio rather than
+        on their difference.
+        """
+        cbplot = ClippedColorbarTestPlot(image, 10.0, 20.0)
+        shifts = 0
+        while cbplot.cmap_limits != (cbplot.vmin_bound, cbplot.vmax_bound):
+            cbplot.shift_cmap_vmin(-cbplot.cmap_delta)
+            cbplot.shift_cmap_vmax(cbplot.cmap_delta)
+            shifts += 1
+            assert shifts < 200
+        assert 50 < shifts < 150
 
     def test_user_specified_bound(self, image):
         """The adjustment bounds should be settable by the user."""

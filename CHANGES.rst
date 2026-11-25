@@ -17,8 +17,12 @@ Version 0.0.5   (xxxx-xx-xx)
   initial range narrower than the data, as specified by e.g. the vmin_quantile
   parameter, may be widened to include all of the data. The bounds are
   available as the vmin_bound and vmax_bound attributes of a plot with a
-  colorbar, and may be changed by assignment. The size of each shift is
-  unchanged, being a fraction cmap_delta of the initial colormap range.
+  colorbar, and may be changed by assignment.
+• Each interactive shift of a colormap limit is now a fraction cmap_delta of
+  the current colormap range rather than of the initial range, so that the
+  number of shifts required to traverse a range does not depend on its size.
+  Narrowing of the range is limited to the cmap_span_min attribute, which
+  defaults to a small fraction of the initial colormap range.
 • Fix bugs in interactive colormap range adjustment: the adjustment failed
   for a plot with colormap limits determined by matplotlib autoscaling of an
   array of integer type, and a mouse scroll event in an invisible colorbar

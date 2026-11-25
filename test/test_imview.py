@@ -257,10 +257,10 @@ class TestImview:
         iview = kplt.imview(image, show_cbar=True, vmin_quantile=0.1)
         vrange = iview.vmax_ref - iview.vmin_ref
         scroll_in_axes(iview.cbar_axes, 0.5, 0.25, button="down")
+        assert iview.cmap_limits[0] == pytest.approx(iview.vmin_ref - 0.02 * vrange)
+        span = iview.cmap_limits[1] - iview.cmap_limits[0]
         scroll_in_axes(iview.cbar_axes, 0.5, 0.75, button="up")
-        assert iview.cmap_limits == pytest.approx(
-            (iview.vmin_ref - 0.02 * vrange, iview.vmax_ref + 0.02 * vrange)
-        )
+        assert iview.cmap_limits[1] == pytest.approx(iview.vmax_ref + 0.02 * span)
 
     def test_event_manager(self, image):
         """The plot should be registered with the figure event manager."""

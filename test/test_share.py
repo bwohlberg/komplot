@@ -197,14 +197,14 @@ class TestShareCmap:
         assert not any(isinstance(v.axesimage.norm.vmin, float) for v in views)
         share_cmap(views)
         scroll_in_axes(views[0].cbar_axes, 0.5, 0.25, button="up")
-        scroll_in_axes(views[0].cbar_axes, 0.5, 0.75, button="down")
         for view in views:
-            assert view.cmap_limits == pytest.approx(
-                (
-                    view.vmin_ref + 0.02 * (view.vmax_ref - view.vmin_ref),
-                    view.vmax_ref - 0.02 * (view.vmax_ref - view.vmin_ref),
-                )
+            assert view.cmap_limits[0] == pytest.approx(
+                view.vmin_ref + 0.02 * (view.vmax_ref - view.vmin_ref)
             )
+        spans = [view.cmap_limits[1] - view.cmap_limits[0] for view in views]
+        scroll_in_axes(views[0].cbar_axes, 0.5, 0.75, button="down")
+        for view, span in zip(views, spans):
+            assert view.cmap_limits[1] == pytest.approx(view.vmax_ref - 0.02 * span)
 
     def test_cross_figure_share(self, image):
         """Plots in different figures should be shareable."""
