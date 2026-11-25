@@ -221,6 +221,15 @@ class TestContour:
         assert cplot.figure is fig
         assert plt.get_fignums() == [fig.number]
 
+    def test_cmap_adjustment_bounds(self, surface_data):
+        """Colormap adjustment should be bounded by the data range."""
+        cplot = kplt.contour(surface_data, vmin=-0.5, vmax=0.5)
+        assert (cplot.vmin_ref, cplot.vmax_ref) == (-0.5, 0.5)
+        assert (cplot.vmin_bound, cplot.vmax_bound) == (
+            surface_data.min(),
+            surface_data.max(),
+        )
+
     def test_event_manager(self, surface_data):
         """The plot should be registered with the figure event manager."""
         cplot = kplt.contour(surface_data)

@@ -236,6 +236,32 @@ class TestImview:
         scroll_in_axes(iview.cbar_axes, 0.5, 0.75, button="down")
         assert iview.cmap_limits == (iview.vmin_ref, iview.vmax_ref)
 
+    def test_cmap_adjustment_bounds(self, image):
+        """Colormap adjustment should be bounded by the image range."""
+        iview = kplt.imview(image, show_cbar=True, vmin_quantile=0.1)
+        assert iview.vmin_ref > image.min()
+        assert iview.vmax_ref < image.max()
+        assert (iview.vmin_bound, iview.vmax_bound) == (image.min(), image.max())
+
+    def test_cmap_adjustment_bounds_default(self, image):
+        """The adjustment bounds should be the image range by default."""
+        iview = kplt.imview(image, show_cbar=True)
+        assert (iview.vmin_bound, iview.vmax_bound) == (image.min(), image.max())
+        assert (iview.vmin_bound, iview.vmax_bound) == (
+            iview.vmin_ref,
+            iview.vmax_ref,
+        )
+
+    def test_cmap_adjustment_beyond_initial_limits(self, image):
+        """A colorbar scroll should be able to widen the colormap range."""
+        iview = kplt.imview(image, show_cbar=True, vmin_quantile=0.1)
+        vrange = iview.vmax_ref - iview.vmin_ref
+        scroll_in_axes(iview.cbar_axes, 0.5, 0.25, button="down")
+        scroll_in_axes(iview.cbar_axes, 0.5, 0.75, button="up")
+        assert iview.cmap_limits == pytest.approx(
+            (iview.vmin_ref - 0.02 * vrange, iview.vmax_ref + 0.02 * vrange)
+        )
+
     def test_event_manager(self, image):
         """The plot should be registered with the figure event manager."""
         iview = kplt.imview(image)

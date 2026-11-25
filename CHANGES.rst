@@ -12,6 +12,13 @@ Version 0.0.5   (xxxx-xx-xx)
   a dict of keyword arguments as parameter xlog or ylog, allowing distinct
   properties for each axis.
 • Fix bug in handling of cmap_delta parameter of image and volume views.
+• Interactive adjustment of the colormap range is now bounded by the range of
+  the displayed data rather than by the initial colormap range, so that an
+  initial range narrower than the data, as specified by e.g. the vmin_quantile
+  parameter, may be widened to include all of the data. The bounds are
+  available as the vmin_bound and vmax_bound attributes of a plot with a
+  colorbar, and may be changed by assignment. The size of each shift is
+  unchanged, being a fraction cmap_delta of the initial colormap range.
 • Fix bugs in interactive colormap range adjustment: the adjustment failed
   for a plot with colormap limits determined by matplotlib autoscaling of an
   array of integer type, and a mouse scroll event in an invisible colorbar

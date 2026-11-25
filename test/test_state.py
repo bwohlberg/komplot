@@ -12,12 +12,13 @@ import numpy as np
 import pytest
 from conftest import scroll_at_data, scroll_in_axes
 from matplotlib.axes import Axes
+from matplotlib.colors import LogNorm
 from matplotlib.figure import Figure
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 import komplot as kplt
 from komplot import ColorbarMixin, Plot, ZoomMixin, figure_event_manager
-from komplot._state import figure_and_axes, log_scale_kwargs
+from komplot._state import data_limits, figure_and_axes, log_scale_kwargs
 
 
 class ZoomTestPlot(ZoomMixin, Plot):
@@ -72,6 +73,47 @@ class AutoscaledColorbarTestPlot(ColorbarMixin, ZoomMixin, Plot):
             axesimage, divider=divider, cbar_axes=cbar_axes, cbar_orient="vertical"
         )
         self.init_zoom()
+
+
+class ClippedColorbarTestPlot(ColorbarMixin, ZoomMixin, Plot):
+    """A plot type with a colormap range narrower than its data range."""
+
+    def __init__(self, image, vmin, vmax, **kwargs):
+        """Display an image with colormap limits within its data range."""
+        fig, ax = plt.subplots()
+        super().__init__(figure=fig, axes=ax)
+        axesimage = ax.imshow(image, vmin=vmin, vmax=vmax, **kwargs)
+        divider = make_axes_locatable(ax)
+        cbar_axes = divider.append_axes("right", size="5%", pad=0.2)
+        plt.colorbar(axesimage, ax=ax, cax=cbar_axes)
+        self.init_colorbar(
+            axesimage,
+            divider=divider,
+            cbar_axes=cbar_axes,
+            cbar_orient="vertical",
+            cmap_data_limits=data_limits(image),
+        )
+        self.init_zoom()
+
+
+class TestDataLimits:
+    """Tests for function data_limits."""
+
+    def test_limits(self, image):
+        """The limits should be the minimum and maximum array values."""
+        assert data_limits(image) == (image.min(), image.max())
+
+    def test_limits_are_floats(self, image):
+        """The limits should be floats for an array of any type."""
+        assert all(
+            isinstance(limit, float)
+            for limit in data_limits((16.0 * image).astype("uint8"))
+        )
+
+    def test_nan_ignored(self, image):
+        """NaN values should be ignored."""
+        nan_image = np.concatenate((image.ravel(), [np.nan]))
+        assert data_limits(nan_image) == data_limits(image)
 
 
 class TestLogScaleKwargs:
@@ -375,13 +417,13 @@ class TestColorbarMixin:
         assert cbplot.axesimage.norm.vmin == cbplot.vmin_ref
 
     def test_shift_vmin_clipped_to_reference(self, image):
-        """A vmin shift should not reduce vmin below the reference value."""
+        """A vmin shift should not reduce vmin below the default bound."""
         cbplot = ColorbarTestPlot(image)
         cbplot.shift_cmap_vmin(-1.0)
         assert cbplot.axesimage.norm.vmin == cbplot.vmin_ref
 
     def test_shift_vmax_clipped_to_reference(self, image):
-        """A vmax shift should not increase vmax above the reference value."""
+        """A vmax shift should not increase vmax above the default bound."""
         cbplot = ColorbarTestPlot(image)
         cbplot.shift_cmap_vmax(1.0)
         assert cbplot.axesimage.norm.vmax == cbplot.vmax_ref
@@ -500,6 +542,84 @@ class TestColorbarMixin:
         assert cbplot.cmap_limits == pytest.approx(
             (cbplot.vmin_ref + 0.02 * vrange, cbplot.vmax_ref - 0.02 * vrange)
         )
+
+    def test_bounds_default_to_reference_limits(self, image):
+        """The adjustment bounds should default to the reference limits."""
+        cbplot = ColorbarTestPlot(image)
+        assert (cbplot.vmin_bound, cbplot.vmax_bound) == (
+            cbplot.vmin_ref,
+            cbplot.vmax_ref,
+        )
+
+    def test_bounds_from_data_limits(self, image):
+        """The adjustment bounds should be the range of the data."""
+        cbplot = ClippedColorbarTestPlot(image, 10.0, 20.0)
+        assert (cbplot.vmin_ref, cbplot.vmax_ref) == (10.0, 20.0)
+        assert (cbplot.vmin_bound, cbplot.vmax_bound) == data_limits(image)
+
+    def test_bounds_not_narrower_than_reference_limits(self, image):
+        """Data limits within the reference limits should not be bounds."""
+        cbplot = ClippedColorbarTestPlot(image, -10.0, 100.0)
+        assert (cbplot.vmin_bound, cbplot.vmax_bound) == (-10.0, 100.0)
+
+    def test_bounds_ignored_for_nonlinear_norm(self, image):
+        """Data limits should not bound the adjustment of a nonlinear norm.
+
+        A colormap limit valid for the data is not necessarily valid for
+        a nonlinear norm, the vmin of a LogNorm of data including
+        nonpositive values being an example.
+        """
+        cbplot = ClippedColorbarTestPlot(image, None, None, norm=LogNorm())
+        assert image.min() == 0.0
+        assert cbplot.vmin_ref > 0.0
+        assert (cbplot.vmin_bound, cbplot.vmax_bound) == (
+            cbplot.vmin_ref,
+            cbplot.vmax_ref,
+        )
+
+    def test_bounds_ignored_for_nonfinite_data_limits(self, image):
+        """Nonfinite data limits should not bound the adjustment."""
+        image = image.copy()
+        image[0, 0] = np.inf
+        cbplot = ClippedColorbarTestPlot(image, 10.0, 20.0)
+        assert (cbplot.vmin_bound, cbplot.vmax_bound) == (10.0, 20.0)
+
+    def test_shift_vmin_below_reference(self, image):
+        """A vmin shift should be able to widen the colormap range."""
+        cbplot = ClippedColorbarTestPlot(image, 10.0, 20.0)
+        cbplot.shift_cmap_vmin(-0.5)
+        assert cbplot.cmap_limits[0] == pytest.approx(5.0)
+
+    def test_shift_vmax_above_reference(self, image):
+        """A vmax shift should be able to widen the colormap range."""
+        cbplot = ClippedColorbarTestPlot(image, 10.0, 20.0)
+        cbplot.shift_cmap_vmax(0.5)
+        assert cbplot.cmap_limits[1] == pytest.approx(25.0)
+
+    def test_shift_vmin_clipped_to_bound(self, image):
+        """A vmin shift should not reduce vmin below the lower bound."""
+        cbplot = ClippedColorbarTestPlot(image, 10.0, 20.0)
+        cbplot.shift_cmap_vmin(-100.0)
+        assert cbplot.cmap_limits[0] == cbplot.vmin_bound == image.min()
+
+    def test_shift_vmax_clipped_to_bound(self, image):
+        """A vmax shift should not increase vmax above the upper bound."""
+        cbplot = ClippedColorbarTestPlot(image, 10.0, 20.0)
+        cbplot.shift_cmap_vmax(100.0)
+        assert cbplot.cmap_limits[1] == cbplot.vmax_bound == image.max()
+
+    def test_shift_size_relative_to_reference_range(self, image):
+        """A shift should be relative to the reference colormap range."""
+        cbplot = ClippedColorbarTestPlot(image, 10.0, 20.0)
+        scroll_in_axes(cbplot.cbar_axes, 0.5, 0.25, button="down")
+        assert cbplot.cmap_limits[0] == pytest.approx(10.0 - 0.02 * 10.0)
+
+    def test_user_specified_bound(self, image):
+        """The adjustment bounds should be settable by the user."""
+        cbplot = ClippedColorbarTestPlot(image, 10.0, 20.0)
+        cbplot.vmin_bound = 8.0
+        cbplot.shift_cmap_vmin(-100.0)
+        assert cbplot.cmap_limits[0] == 8.0
 
     def test_zoom_still_supported(self, image):
         """Zoom support should be provided by the ZoomMixin base class."""

@@ -124,6 +124,21 @@ class TestVolview:
         assert vview.figure is fig
         assert plt.get_fignums() == [fig.number]
 
+    def test_cmap_adjustment_bounds(self, volume):
+        """Adjustment should be bounded by the range of the whole volume."""
+        vview = kplt.volview(volume, show_cbar=True, vmin_quantile=0.1)
+        assert vview.vmin_ref > volume.min()
+        assert vview.vmax_ref < volume.max()
+        assert (vview.vmin_bound, vview.vmax_bound) == (volume.min(), volume.max())
+
+    def test_cmap_adjustment_bounds_not_slice_range(self, volume):
+        """The adjustment bounds should not be those of a single slice."""
+        scaled = volume.copy()
+        scaled[-1] *= 10.0
+        vview = kplt.volview(scaled, show_cbar=True)
+        assert vview.vmax_bound == scaled.max()
+        assert vview.vmax_bound > scaled[0].max()
+
     def test_event_manager(self, volume):
         """The plot should be registered with the figure event manager."""
         vview = kplt.volview(volume)

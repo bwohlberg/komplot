@@ -20,7 +20,7 @@ from mpl_toolkits.axes_grid1.axes_divider import (
     AxesDivider,  # type: ignore[import-untyped]
 )
 
-from ._state import ColorbarMixin, Plot, ZoomMixin, figure_and_axes
+from ._state import ColorbarMixin, Plot, ZoomMixin, data_limits, figure_and_axes
 
 try:
     import mplcursors as mplcrs  # type: ignore[import-not-found]
@@ -151,6 +151,7 @@ class ImageMixin:
         show_cbar: Optional[bool] = False,
         cmap: Optional[Union[Colormap, str]] = None,
         title: Optional[str] = None,
+        cmap_data_limits: Optional[Tuple[float, float]] = None,
     ):
         """Initialize image display support.
 
@@ -173,6 +174,11 @@ class ImageMixin:
                 set to ``None``, create an invisible colorbar.
             cmap: Color map for the image.
             title: Axes title.
+            cmap_data_limits: Range of the data bounding the adjustment
+                of the colormap limits. If ``None``, the range of
+                :code:`image` is used, which is not appropriate for a
+                plot type displaying one of a set of images, such as the
+                slices of a volume.
         """
         ax: Axes = self.axes  # type: ignore[attr-defined]
 
@@ -227,12 +233,16 @@ class ImageMixin:
                 ax, axim, divider, orient=cbar_orient, visible=cbar_visible
             )
 
+        if cmap_data_limits is None:
+            cmap_data_limits = data_limits(image)
+
         self.init_colorbar(  # type: ignore[attr-defined]
             axim,
             divider=divider,
             cbar_axes=cax,
             cbar_orient=cbar_orient,
             cbar_visible=cbar_visible,
+            cmap_data_limits=cmap_data_limits,
         )
 
 

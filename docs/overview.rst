@@ -123,12 +123,12 @@ It also provides interactive adjustment/navigation support in addition to the st
 | in main figure         | cursor location.               | :func:`~komplot.surface`   |
 +------------------------+--------------------------------+----------------------------+
 | **Mouse wheel scroll** | Increase or decrease colormap  | All plots with a           |
-| in bottom half of      | :code:`vmin`.                  | visible colorbar           |
-| colorbar               |                                |                            |
+| in bottom half of      | :code:`vmin`, within the range | visible colorbar           |
+| colorbar               | of the displayed data.         |                            |
 +------------------------+--------------------------------+----------------------------+
 | **Mouse wheel scroll** | Increase or decrease colormap  | All plots with a           |
-| in top half of         | :code:`vmax`.                  | visible colorbar           |
-| colorbar               |                                |                            |
+| in top half of         | :code:`vmax`, within the range | visible colorbar           |
+| colorbar               | of the displayed data.         |                            |
 +------------------------+--------------------------------+----------------------------+
 | **Mouse wheel scroll** | Increase or decrease slice     | A :func:`~komplot.volview` |
 | in main figure with    | index.                         | plot of a 3D volume.       |
@@ -153,7 +153,7 @@ Each of the plotting functions returns a plot object that provides access to the
     iv.slice_index = 100
 
 and the colormap range of a plot with a colorbar may be adjusted via the
-:meth:`~komplot.ColorbarMixin.shift_cmap_vmin` and :meth:`~komplot.ColorbarMixin.shift_cmap_vmax` methods. The plot object corresponding to an axes may be retrieved via :func:`~komplot.plot_for_axes`, and all the plot objects of a figure via :func:`~komplot.plots`.
+:meth:`~komplot.ColorbarMixin.shift_cmap_vmin` and :meth:`~komplot.ColorbarMixin.shift_cmap_vmax` methods. Each shift, whether by mouse wheel scroll in the colorbar or by a call to one of those methods, is a fraction :attr:`~komplot.ColorbarMixin.cmap_delta` of the initial colormap range, and is bounded by :attr:`~komplot.ColorbarMixin.vmin_bound` and :attr:`~komplot.ColorbarMixin.vmax_bound`, which default to the range of the displayed data. An initial colormap range narrower than the data, such as that specified by the :code:`vmin_quantile` parameter of :func:`~komplot.imview`, may therefore be widened to include all of the data, and either bound may be changed by assignment if some other limit is wanted. The plot object corresponding to an axes may be retrieved via :func:`~komplot.plot_for_axes`, and all the plot objects of a figure via :func:`~komplot.plots`.
 
 
 Sharing plot properties

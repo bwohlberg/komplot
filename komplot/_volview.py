@@ -18,7 +18,14 @@ from mpl_toolkits.axes_grid1.axes_divider import (
 )
 
 from ._imview import ImageMixin, _cmap_limit_kwargs
-from ._state import ColorbarMixin, Plot, SliceMixin, ZoomMixin, figure_and_axes
+from ._state import (
+    ColorbarMixin,
+    Plot,
+    SliceMixin,
+    ZoomMixin,
+    data_limits,
+    figure_and_axes,
+)
 
 
 def _create_slider(
@@ -148,6 +155,7 @@ class VolumeView(SliceMixin, ImageMixin, ColorbarMixin, ZoomMixin, Plot):
             show_cbar=show_cbar,
             cmap=cmap,
             title=title,
+            cmap_data_limits=data_limits(volume),
         )
 
         pad = 0.35 if show_cbar and self.cbar_orient == "horizontal" else 0.1

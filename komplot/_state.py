@@ -38,6 +38,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.backend_bases import Event
+from matplotlib.colors import Normalize
 from matplotlib.figure import Figure
 from matplotlib.widgets import Slider
 from mpl_toolkits.axes_grid1.axes_divider import (
@@ -71,6 +72,19 @@ def log_scale_kwargs(log: LogScaleType) -> Optional[Dict[str, Any]]:
     if isinstance(log, dict):
         return log
     return {} if log else None
+
+
+def data_limits(data: np.ndarray) -> Tuple[float, float]:
+    """Get the range of the values of an array.
+
+    Args:
+        data: Array for which the range is required.
+
+    Returns:
+        A tuple (`min`, `max`) of the minimum and maximum values of
+        :code:`data`, ignoring NaN values.
+    """
+    return float(np.nanmin(data)), float(np.nanmax(data))
 
 
 def figure_and_axes(
@@ -351,10 +365,16 @@ class ColorbarMixin:
 
     Mouse wheel scroll in the bottom/left half of the colorbar adjusts
     the colormap :code:`vmin`, and scroll in the top/right half adjusts
-    the colormap :code:`vmax`, the limits being constrained to those
-    recorded on initialization. If the plot belongs to a colormap share
-    group (see :func:`komplot.share_cmap`), the adjustment is applied to
-    every member of the group.
+    the colormap :code:`vmax`. Each scroll shifts the limit by a fixed
+    fraction of the colormap range recorded on initialization, and the
+    limits are constrained to the bounds
+    :attr:`vmin_bound` and :attr:`vmax_bound`, which are the range of
+    the displayed data where that is known, so that an initial colormap
+    range narrower than the data, as specified by e.g. the
+    :code:`vmin_quantile` parameter of :func:`komplot.imview`, may be
+    widened to include all of the data. If the plot belongs to a
+    colormap share group (see :func:`komplot.share_cmap`), the
+    adjustment is applied to every member of the group.
 
     Attributes:
         axesimage: The :class:`~matplotlib.image.AxesImage` associated
@@ -369,8 +389,12 @@ class ColorbarMixin:
            colorbar, created to maintain consistent image size within a
            figure, does not respond to mouse scroll events.
         cmap_delta: Fraction of colormap range for vmin/vmax shifts.
-        vmin_ref: Reference colormap :code:`vmin`.
-        vmax_ref: Reference colormap :code:`vmax`.
+        vmin_ref: Reference colormap :code:`vmin`, i.e. its value on
+           initialization, which determines the size of a vmin shift.
+        vmax_ref: Reference colormap :code:`vmax`, i.e. its value on
+           initialization, which determines the size of a vmax shift.
+        vmin_bound: Lower bound for adjustment of colormap :code:`vmin`.
+        vmax_bound: Upper bound for adjustment of colormap :code:`vmax`.
     """
 
     axesimage: mpl.image.AxesImage
@@ -381,6 +405,8 @@ class ColorbarMixin:
     cmap_delta: float
     vmin_ref: float
     vmax_ref: float
+    vmin_bound: float
+    vmax_bound: float
     _cmap_group: Optional[ShareGroup] = None
 
     def init_colorbar(
@@ -390,12 +416,14 @@ class ColorbarMixin:
         cbar_axes: Optional[Axes] = None,
         cbar_orient: Optional[str] = None,
         cbar_visible: bool = True,
+        cmap_data_limits: Optional[Tuple[float, float]] = None,
         cmap_delta: float = 0.02,
     ):
         """Initialize colorbar support.
 
-        Record the colorbar artists and the current colormap limits as
-        the reference limits.
+        Record the colorbar artists, the current colormap limits as the
+        reference limits, and the bounds within which the colormap
+        limits may be adjusted.
 
         Args:
             axesimage: The :class:`~matplotlib.image.AxesImage`
@@ -408,6 +436,17 @@ class ColorbarMixin:
                is not, the matplotlib default of "vertical" is assumed.
             cbar_visible: Flag indicating whether the colorbar is
                visible.
+            cmap_data_limits: Range of the displayed data, as a tuple
+               (`min`, `max`), which bounds the adjustment of the
+               colormap limits. If ``None``, or not finite, the
+               reference limits are used as the bounds. It is also
+               ignored, for safety, if
+               the colormap norm is not a linear
+               :class:`~matplotlib.colors.Normalize`, since a limit
+               valid for the data is not necessarily valid for a
+               nonlinear norm: the :code:`vmin` of a
+               :class:`~matplotlib.colors.LogNorm` of data including
+               nonpositive values, for example.
             cmap_delta: Fraction of colormap range for vmin/vmax shifts.
         """
         self.axesimage = axesimage
@@ -420,6 +459,15 @@ class ColorbarMixin:
         self.cbar_visible = cbar_visible and cbar_axes is not None
         self.cmap_delta = cmap_delta
         self.vmin_ref, self.vmax_ref = self.cmap_limits
+        if (
+            cmap_data_limits is None
+            or not all(np.isfinite(cmap_data_limits))
+            or type(axesimage.norm) is not Normalize
+        ):
+            self.vmin_bound, self.vmax_bound = self.vmin_ref, self.vmax_ref
+        else:
+            self.vmin_bound = min(cmap_data_limits[0], self.vmin_ref)
+            self.vmax_bound = max(cmap_data_limits[1], self.vmax_ref)
         self._cmap_group = None
 
     @property
@@ -512,9 +560,9 @@ class ColorbarMixin:
     def shift_cmap_vmin(self, rel_delta: float):
         """Change colormap :code:`vmin`.
 
-        Change the colormap :code:`vmin` of this plot, clipping it to the
-        reference range. If the plot belongs to a colormap share group,
-        the change is applied to every member of the group.
+        Change the colormap :code:`vmin` of this plot, clipping it to
+        :attr:`vmin_bound`. If the plot belongs to a colormap share
+        group, the change is applied to every member of the group.
 
         Args:
             rel_delta: Signed relative change in colormap :code:`vmin`
@@ -525,9 +573,9 @@ class ColorbarMixin:
     def shift_cmap_vmax(self, rel_delta: float):
         """Change colormap :code:`vmax`.
 
-        Change the colormap :code:`vmax` of this plot, clipping it to the
-        reference range. If the plot belongs to a colormap share group,
-        the change is applied to every member of the group.
+        Change the colormap :code:`vmax` of this plot, clipping it to
+        :attr:`vmax_bound`. If the plot belongs to a colormap share
+        group, the change is applied to every member of the group.
 
         Args:
             rel_delta: Signed relative change in colormap :code:`vmax`
@@ -548,8 +596,8 @@ class ColorbarMixin:
         vmin, vmax = self.cmap_limits
         abs_delta = rel_delta * (self.vmax_ref - self.vmin_ref)
         new_vmin = vmin + abs_delta
-        if new_vmin < self.vmin_ref:
-            new_vmin = self.vmin_ref
+        if new_vmin < self.vmin_bound:
+            new_vmin = self.vmin_bound
         if new_vmin < vmax:
             self.axesimage.set_clim(vmin=new_vmin)
         self.axes.figure.canvas.draw_idle()  # type: ignore[attr-defined]
@@ -570,8 +618,8 @@ class ColorbarMixin:
         vmin, vmax = self.cmap_limits
         abs_delta = rel_delta * (self.vmax_ref - self.vmin_ref)
         new_vmax = vmax + abs_delta
-        if new_vmax > self.vmax_ref:
-            new_vmax = self.vmax_ref
+        if new_vmax > self.vmax_bound:
+            new_vmax = self.vmax_bound
         if new_vmax > vmin:
             self.axesimage.set_clim(vmax=new_vmax)
         self.axes.figure.canvas.draw_idle()  # type: ignore[attr-defined]

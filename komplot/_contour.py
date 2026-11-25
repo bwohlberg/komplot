@@ -21,6 +21,7 @@ from ._state import (
     LogScaleType,
     Plot,
     ZoomMixin,
+    data_limits,
     figure_and_axes,
     log_scale_kwargs,
 )
@@ -137,6 +138,7 @@ class ContourPlot(ColorbarMixin, ZoomMixin, Plot):
             divider=divider,
             cbar_axes=cax,
             cbar_orient="vertical",
+            cmap_data_limits=data_limits(z),
         )
         self.init_zoom()
         self.show_new_figure()
