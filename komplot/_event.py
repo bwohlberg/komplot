@@ -15,9 +15,12 @@ import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.backend_bases import Event
 from matplotlib.figure import Figure
+from mpl_help import HelpManager
 
 if TYPE_CHECKING:
     from ._state import Plot
+
+from ._help import HELP_KEY, attach_help
 
 
 class FigureEventManager:
@@ -62,6 +65,7 @@ class FigureEventManager:
         self.fig_scale = fig_scale
         self.key_pressed = {k: False for k in self.monitored_keys}
         self.plots: List[Plot] = []
+        self._help_manager: Optional[HelpManager] = None
 
         # Attach this event manager to the figure and connect callbacks
         fig._event_manager = self  # type: ignore[attr-defined]
@@ -86,6 +90,11 @@ class FigureEventManager:
             self.fig.set_size_inches(
                 self.fig.get_size_inches() / self.fig_scale, forward=True  # type: ignore[arg-type]
             )
+        elif event.key == HELP_KEY and self._help_manager is None:
+            # The help display is created when it is first required, since it
+            # describes the plots of the figure, which are not all constructed
+            # when this manager is; once created, it handles the key itself
+            self.show_help()
         elif event.key in self.monitored_keys:
             self.key_pressed[event.key] = True
 
@@ -127,6 +136,30 @@ class FigureEventManager:
             plot: Plot to register.
         """
         self.plots.append(plot)
+        self._discard_help()
+
+    def show_help(self):
+        """Display the help for the interactive features of the figure.
+
+        The help is also displayed, and hidden, by pressing the
+        :data:`komplot._help.HELP_KEY` key within the figure.
+        """
+        if self._help_manager is None:
+            self._help_manager = attach_help(self.fig, self.plots)
+        self._help_manager.show()
+
+    def _discard_help(self):
+        """Discard the help display for the figure.
+
+        The help describes the interactive features of the plots of the
+        figure, and is therefore discarded, to be constructed again when
+        it is next required, whenever a plot is added to the figure. A
+        help display that is open when it is discarded is closed, since
+        it would otherwise remain out of date.
+        """
+        if self._help_manager is not None:
+            self._help_manager.detach()
+            self._help_manager = None
 
     def plot_for_axes(self, axes: Axes) -> Optional[Plot]:
         """Get the plot that owns an axes.
@@ -236,3 +269,25 @@ def plot_for_axes(axes: Axes) -> Optional[Plot]:
         return None
     fem = FigureEventManager.attached_manager(fig)
     return None if fem is None else fem.plot_for_axes(axes)
+
+
+def show_help(fig: Optional[Figure] = None):
+    """Display the help for the interactive features of a figure.
+
+    The help describes the features of the plots of the figure as well as
+    those of the figure itself. It is also displayed, and hidden, by
+    pressing the "?" key within the figure, which is not possible in a
+    Jupyter notebook with the `ipympl <https://matplotlib.org/ipympl/>`__
+    backend, in which keyboard shortcuts are not functional.
+
+    Args:
+        fig: Figure for which the help is required. Defaults to the
+          current figure.
+
+    Raises:
+        RuntimeError: If the figure has no attached event manager, as it
+           has not if no plot has been created in it.
+    """
+    if fig is None:
+        fig = plt.gcf()
+    figure_event_manager(fig, error=True).show_help()

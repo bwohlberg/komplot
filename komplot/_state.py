@@ -42,6 +42,7 @@ from matplotlib.backend_bases import Event
 from matplotlib.colors import Normalize
 from matplotlib.figure import Figure
 from matplotlib.widgets import Slider
+from mpl_help import HelpSection, KeyBinding
 from mpl_toolkits.axes_grid1.axes_divider import (
     AxesDivider,  # type: ignore[import-untyped]
 )
@@ -225,6 +226,23 @@ class Plot:
                 return True
         return False
 
+    def help_section(self) -> Optional[HelpSection]:
+        """Get the help for the interactive features of this class.
+
+        Each class of which a plot is composed may define this method to
+        describe the features that it provides, the help displayed for a
+        figure being assembled from the sections contributed by the
+        classes of its plots, as described in :mod:`komplot._help` and
+        displayed by :func:`komplot.show_help`. A class that provides no
+        interactive features, or one the features of which are not
+        available in a particular plot, returns ``None``.
+
+        Returns:
+            Help section describing the features provided by this class,
+            or ``None`` if it provides none.
+        """
+        return None
+
 
 class ZoomMixin:
     """Mixin class providing axis zoom via mouse wheel scroll.
@@ -369,6 +387,22 @@ class ZoomMixin:
             ylim = ylim[::-1]
         msg = f"Zoom to [{ylim[0]:.1f}:{ylim[1]:.1f}, {xlim[0]:.1f}:{xlim[1]:.1f}]"
         self.toolbar_message(msg)  # type: ignore[attr-defined]
+
+    def help_section(self) -> Optional[HelpSection]:
+        """Get the help for mouse wheel zoom.
+
+        Returns:
+            Help section describing zoom by mouse wheel scroll.
+        """
+        return HelpSection(
+            title="Zoom",
+            accent="purple",
+            bindings=[
+                KeyBinding(
+                    "Mouse wheel", "Zoom in or out at the current cursor location"
+                )
+            ],
+        )
 
 
 class ColorbarMixin:
@@ -673,6 +707,47 @@ class ColorbarMixin:
         msg = f"Color map vmax set to {self.cmap_limits[1]:.1f}"
         self.toolbar_message(msg)  # type: ignore[attr-defined]
 
+    def help_section(self) -> Optional[HelpSection]:
+        """Get the help for colormap range adjustment.
+
+        The halves of the colorbar are named according to its
+        orientation, and an adjustment applied to a colormap share group
+        is noted as such.
+
+        Returns:
+            Help section describing adjustment of the colormap range by
+            mouse wheel scroll in the colorbar, or ``None`` if the plot
+            has no colorbar of its own, in which case no such adjustment
+            is possible within it: a plot that defers to a colorbar
+            shared with other plots is represented by the colorbar of
+            the plot that draws it.
+        """
+        if self.cbar_axes is None:
+            return None
+        lower, upper = (
+            ("lower", "upper") if self.cbar_orient == "vertical" else ("left", "right")
+        )
+        return HelpSection(
+            title="Colormap Range",
+            accent="orange",
+            note=(
+                None
+                if self.cmap_group is None
+                else "An adjustment is applied to every plot of the colormap "
+                "share group."
+            ),
+            bindings=[
+                KeyBinding(
+                    f"Mouse wheel in {lower} half of colorbar",
+                    "Increase or decrease the colormap vmin",
+                ),
+                KeyBinding(
+                    f"Mouse wheel in {upper} half of colorbar",
+                    "Increase or decrease the colormap vmax",
+                ),
+            ],
+        )
+
 
 class SliceMixin:
     """Mixin class providing volume slice selection.
@@ -833,3 +908,22 @@ class SliceMixin:
 
         msg = f"Slice index {self._slice_index} of {self.volume.shape[0]}"
         self.toolbar_message(msg)  # type: ignore[attr-defined]
+
+    def help_section(self) -> Optional[HelpSection]:
+        """Get the help for volume slice selection.
+
+        Returns:
+            Help section describing selection of the displayed volume
+            slice, including the slice selection slider if the plot has
+            one.
+        """
+        bindings = [
+            KeyBinding(
+                "Shift + Mouse wheel", "Display the next or previous volume slice"
+            )
+        ]
+        if self.slider is not None:
+            bindings.append(
+                KeyBinding("Slider click or drag", "Select the volume slice to display")
+            )
+        return HelpSection(title="Volume Slice", accent="green", bindings=bindings)

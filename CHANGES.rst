@@ -29,6 +29,13 @@ Version 0.0.5   (xxxx-xx-xx)
   the plots of a figure, has been removed in favour of reserved space, which
   is more reliable and does not reduce the size of the plots. The
   cbar_visible attribute of a plot with a colorbar has been removed.
+• Add help for the interactive features of a figure, displayed and hidden by
+  pressing the "?" key within it, and also by new function show_help. The help
+  is assembled from the classes of which the plots of the figure are composed,
+  each of which describes the features that it provides via a new help_section
+  method, so that the help for a figure describes the features that are
+  available in it. The display is provided by the mpl-help package, which is a
+  new dependency.
 • Major restructuring of the class hierarchy: each plot type is now a single
   class, combining plot state, construction, and event handling, composed
   from feature mixin classes (ZoomMixin, ColorbarMixin, ImageMixin, and
