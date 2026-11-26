@@ -164,7 +164,7 @@ A single colorbar may also be shared by multiple plots, space for one shared by 
     ivs = [kplt.imview(image, norm=norm, ax=axs) for image, axs in zip(images, ax)]
     kplt.share_cmap(ivs)
 
-A shared colorbar is drawn by the first plot displayed in the axes sharing it, and represents the colormap range of that plot, a warning being emitted if a plot that defers to it has a different range. Placing the plots in a colormap share group (see `Sharing plot properties`_) ensures that an interactive adjustment of the range of any of them is applied to all.
+A shared colorbar is drawn by the first plot displayed in the axes sharing it, and represents the colormap range of that plot, a warning being emitted if a plot that defers to it has a different range. A reserved axes is sized and positioned to match the extent of the plots that it serves, which is smaller than their gridspec cells when they have a fixed aspect ratio, as an image does: a vertical colorbar extends from the top of the topmost of the plots that it serves to the bottom of the bottommost, whatever the aspect of each of them, and a colorbar or slider representing a single plot matches that plot. Placing the plots in a colormap share group (see `Sharing plot properties`_) ensures that an interactive adjustment of the range of any of them is applied to all.
 
 Since the spacing of the tracks of the layout is specified by the gridspec itself, which matplotlib declines to adjust, a tight layout is not compatible with reserved space; a constrained layout may be used instead.
 

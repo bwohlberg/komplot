@@ -25,7 +25,9 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.axes import Axes
-from matplotlib.figure import Figure
+from matplotlib.figure import Figure, SubFigure
+from matplotlib.gridspec import SubplotSpec
+from matplotlib.transforms import Bbox
 
 from ._event import plot_for_axes
 
@@ -240,6 +242,101 @@ class _Track:
         return np.atleast_1d(self.flags.any(axis=0 if self.vertical else 1))
 
 
+class _ReservedAxesLocator:
+    """Position a reserved axes to match the plots that it serves.
+
+    The axes of a plot with a fixed aspect ratio, such as an image, is
+    usually smaller than the cell of the gridspec within which it is
+    placed, and changes in size as the figure is resized. An auxiliary
+    axes that tracked its cell would therefore be larger than the plot it
+    represents, and separated from it, which is particularly conspicuous
+    for an axes shared by a set of plots spanning multiple rows or
+    columns. The position of a reserved axes is accordingly determined at
+    draw time, from the current extent of the plots that it serves, so
+    that it matches the extent of the largest of them, and is adjacent to
+    it. Its size across that extent, and the space between it and the
+    plots, are those of the cell reserved for it, and it falls back to
+    that cell if it serves no plot that is still present in the figure.
+    """
+
+    def __init__(
+        self,
+        subplotspec: SubplotSpec,
+        plot_axes: List[Axes],
+        vertical: bool,
+        pad_ratio: float,
+    ):
+        """
+        Args:
+            subplotspec: Cell of the gridspec reserved for the axes.
+            plot_axes: Axes of the plots that the reserved axes serves.
+            vertical: ``True`` if the reserved axes is to the right of the
+               plots that it serves, and ``False`` if it is below them.
+            pad_ratio: Space between the plots and the reserved axes, as a
+               fraction of the size of the reserved axes.
+        """
+        self.subplotspec = subplotspec
+        self.plot_axes = plot_axes
+        self.vertical = vertical
+        self.pad_ratio = pad_ratio
+
+    def get_subplotspec(self) -> SubplotSpec:
+        """Get the cell of the gridspec reserved for the axes.
+
+        Layout engines determine the position of an axes with a locator
+        from the locator itself, rather than from the axes.
+
+        Returns:
+            The cell of the gridspec reserved for the axes.
+        """
+        return self.subplotspec
+
+    def served_extent(self, figure: Union[Figure, SubFigure]) -> Optional[Bbox]:
+        """Determine the extent of the plots served by the reserved axes.
+
+        Args:
+            figure: Figure within which the plots are displayed.
+
+        Returns:
+            The union of the extents of the axes of the plots that are
+            still present in the figure, or ``None`` if there are none.
+        """
+        boxes = []
+        for axs in self.plot_axes:
+            # An axes replaced within its cell, as a 3D axes replaces a 2D
+            # one, is no longer part of the figure
+            if axs not in figure.axes:
+                continue
+            # The extent of an axes with a fixed aspect ratio is determined
+            # when the aspect is applied, which may not yet have occurred
+            axs.apply_aspect()
+            boxes.append(axs.get_position())
+        return Bbox.union(boxes) if boxes else None
+
+    def __call__(self, axes: Axes, renderer: Any, /) -> Bbox:
+        """Determine the position of the reserved axes.
+
+        Args:
+            axes: The reserved axes.
+            renderer: Renderer with which the figure is being drawn.
+
+        Returns:
+            The position of the reserved axes, in figure coordinates.
+        """
+        figure = axes.get_figure()
+        if figure is None:
+            return axes.get_position(original=True)
+        cell = self.subplotspec.get_position(figure)  # type: ignore[arg-type]
+        extent = self.served_extent(figure)
+        if extent is None:
+            return cell
+        if self.vertical:
+            x0 = extent.x1 + self.pad_ratio * cell.width
+            return Bbox.from_extents(x0, extent.y0, x0 + cell.width, extent.y1)
+        y1 = extent.y0 - self.pad_ratio * cell.height
+        return Bbox.from_extents(extent.x0, y1 - cell.height, extent.x1, y1)
+
+
 class _Direction:
     """The gridspec rows, or columns, of a figure layout.
 
@@ -378,7 +475,12 @@ def subplots(
     :code:`sax`, for a slider, either of which is ``None`` if no such
     space was reserved. A plot created in an axes for which space has been
     reserved uses it in preference to taking space from the axes itself
-    (see :func:`~komplot.imview`).
+    (see :func:`~komplot.imview`). A reserved axes is sized and positioned
+    to match the extent of the plots that it serves, which is smaller than
+    the cells of those plots when they have a fixed aspect ratio, as an
+    image does: a colorbar shared by a set of plots extends from the top of
+    the topmost of them to the bottom of the bottommost, and a colorbar or
+    slider representing a single plot matches that plot.
 
     Reservations are specified by `cbar` and `slider`, each of which may be
 
@@ -613,9 +715,23 @@ def _create_reserved_axes(
                     position = gs[rows.reserved[track.name][row], cols.plot[col]]
                 reserved[row, col] = fig.add_subplot(position)
 
+    # Each reserved axes is positioned at draw time to match the extent of the
+    # plots that it serves, which is smaller than that of the cells of those
+    # plots when they have a fixed aspect ratio
+    served: Dict[Axes, List[Axes]] = {}
     for index in np.ndindex(axes.shape):
         axs = reserved[index]
         if isinstance(axs, Axes):
-            # A reserved axes is shown only once a plot has drawn in it
-            axs.set_visible(False)
+            served.setdefault(axs, []).append(axes[index])
         setattr(axes[index], track.name, axs)
+
+    for aux_axes, plots in served.items():
+        # A reserved axes is shown only once a plot has drawn in it
+        aux_axes.set_visible(False)
+        subplotspec = aux_axes.get_subplotspec()
+        if subplotspec is not None:
+            aux_axes.set_axes_locator(
+                _ReservedAxesLocator(  # type: ignore[arg-type]
+                    subplotspec, plots, track.vertical, track.pad / track.size
+                )
+            )

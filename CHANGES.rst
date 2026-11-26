@@ -14,7 +14,10 @@ Version 0.0.5   (xxxx-xx-xx)
   equal size whether or not they have a colorbar, and remain so when the
   figure is resized, and no space is wasted alongside plots that do not have
   one. A single colorbar may also be shared by all of the plots of a figure,
-  or of each of its rows or columns.
+  or of each of its rows or columns. A colorbar or slider in reserved space is
+  sized and positioned to match the extent of the plots that it represents,
+  which is smaller than their gridspec cells when they have a fixed aspect
+  ratio, as an image does.
 • A colorbar is now displayed by default by a plot in an axes for which space
   has been reserved, i.e. the show_cbar parameter of imview and volview now
   defaults to None, meaning that a colorbar is displayed if space has been

@@ -11,6 +11,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 from matplotlib.axes import Axes
+from matplotlib.colors import Normalize
+from matplotlib.transforms import Bbox
 
 import komplot as kplt
 from komplot._layout import claim_reserved_axes, reserved_axes, reserved_orientation
@@ -307,3 +309,139 @@ class TestAxesReplacement:
         splot = kplt.surface(surface_data, ax=ax[0])
         kplt.imview(image, ax=ax[1])
         assert cells_equal(fig, [splot.axes, ax[1]])
+
+
+class TestReservedExtent:
+    """Tests for the extent of a reserved axes.
+
+    The axes of a plot with a fixed aspect ratio, such as an image, is
+    smaller than the cell of the gridspec within which it is placed, so
+    that a reserved axes is positioned from the extent of the plots that
+    it serves rather than from that cell.
+    """
+
+    @staticmethod
+    def extent(plots):
+        """Get the union of the extents of the axes of a set of plots."""
+        return Bbox.union([plot.axes.get_window_extent() for plot in plots])
+
+    def test_shared_matches_tallest(self, image, wide_image):
+        """A shared colorbar should match the extent of the tallest plot."""
+        fig, ax = kplt.subplots(ncols=3, cbar="shared", figsize=(12, 4))
+        norm = Normalize(vmin=0.0, vmax=48.0)
+        plots = [
+            kplt.imview(data, norm=norm, ax=axs)
+            for data, axs in zip((image, wide_image, image), ax)
+        ]
+        fig.canvas.draw()
+        tallest = max(
+            (plot.axes.get_window_extent() for plot in plots),
+            key=lambda box: box.height,
+        )
+        cbox = ax[0].cax.get_window_extent()
+        assert cbox.y0 == pytest.approx(tallest.y0)
+        assert cbox.y1 == pytest.approx(tallest.y1)
+
+    def test_shared_matches_only_wide_plots(self, wide_image):
+        """A shared colorbar should not exceed the plots that it serves."""
+        fig, ax = kplt.subplots(ncols=3, cbar="shared", figsize=(12, 4))
+        norm = Normalize(vmin=0.0, vmax=48.0)
+        plots = [kplt.imview(wide_image, norm=norm, ax=axs) for axs in ax]
+        fig.canvas.draw()
+        extent = self.extent(plots)
+        cbox = ax[0].cax.get_window_extent()
+        assert cbox.height == pytest.approx(extent.height)
+        # The extent of the plots is well short of that of their cells
+        assert extent.height < 0.9 * cell(fig, ax[0])[1]
+
+    def test_shared_spanning_rows(self, image, wide_image):
+        """A shared colorbar should span from the topmost to the bottommost plot."""
+        fig, ax = kplt.subplots(nrows=2, ncols=2, cbar="shared", figsize=(8, 8))
+        norm = Normalize(vmin=0.0, vmax=48.0)
+        data = (image, wide_image, wide_image, image)
+        plots = [
+            kplt.imview(datum, norm=norm, ax=axs)
+            for datum, axs in zip(data, np.ravel(ax))
+        ]
+        fig.canvas.draw()
+        extent = self.extent(plots)
+        cbox = ax[0, 0].cax.get_window_extent()
+        assert cbox.y1 == pytest.approx(extent.y1)
+        assert cbox.y0 == pytest.approx(extent.y0)
+
+    def test_shared_below_column(self, image, wide_image):
+        """A shared colorbar below a column should match the widest plot."""
+        fig, ax = kplt.subplots(
+            nrows=2, ncols=2, cbar="col", cbar_location="bottom", figsize=(8, 8)
+        )
+        norm = Normalize(vmin=0.0, vmax=48.0)
+        plots = [
+            kplt.imview(data, norm=norm, ax=axs)
+            for data, axs in zip((image, wide_image), ax[:, 0])
+        ]
+        fig.canvas.draw()
+        extent = self.extent(plots)
+        cbox = ax[0, 0].cax.get_window_extent()
+        assert cbox.x0 == pytest.approx(extent.x0)
+        assert cbox.x1 == pytest.approx(extent.x1)
+
+    def test_per_plot_matches_its_plot(self, wide_image):
+        """A colorbar should match the extent of the plot that it represents."""
+        fig, ax = kplt.subplots(ncols=2, cbar=True, cbar_pad=0.05, figsize=(12, 4))
+        plot = kplt.imview(wide_image, ax=ax[0])
+        kplt.imview(wide_image, ax=ax[1])
+        fig.canvas.draw()
+        box = plot.axes.get_window_extent()
+        cbox = plot.cbar_axes.get_window_extent()
+        assert cbox.y0 == pytest.approx(box.y0)
+        assert cbox.y1 == pytest.approx(box.y1)
+        # It is adjacent to the plot, rather than to the cell of the plot
+        assert cbox.x0 - box.x1 == pytest.approx(0.05 * cell(fig, ax[0])[0])
+
+    def test_slider_matches_its_plot(self, volume):
+        """A slider should match the extent of the slice that it selects."""
+        fig, ax = kplt.subplots(ncols=2, slider=True, figsize=(8, 6))
+        vview = kplt.volview(volume, ax=ax[0])
+        fig.canvas.draw()
+        box = vview.axes.get_window_extent()
+        sbox = vview.slider_axes.get_window_extent()
+        assert sbox.x0 == pytest.approx(box.x0)
+        assert sbox.x1 == pytest.approx(box.x1)
+
+    @pytest.mark.parametrize("size", [(12, 4), (6, 4), (4, 9)])
+    def test_extent_tracked_on_resize(self, wide_image, size):
+        """A reserved axes should track its plots when the figure is resized."""
+        fig, ax = kplt.subplots(ncols=2, cbar="shared", figsize=(12, 4))
+        norm = Normalize(vmin=0.0, vmax=48.0)
+        plots = [kplt.imview(wide_image, norm=norm, ax=axs) for axs in ax]
+        fig.set_size_inches(*size, forward=True)
+        fig.canvas.draw()
+        extent = self.extent(plots)
+        cbox = ax[0].cax.get_window_extent()
+        assert cbox.y0 == pytest.approx(extent.y0)
+        assert cbox.y1 == pytest.approx(extent.y1)
+
+    def test_cell_used_without_plots(self):
+        """A reserved axes should use its cell when it serves no plot."""
+        fig, ax = kplt.subplots(ncols=2, cbar=True, figsize=(8, 4))
+        fig.canvas.draw()
+        box = ax[0].cax.get_window_extent()
+        expected = ax[0].cax.get_subplotspec().get_position(fig)
+        assert box.y0 == pytest.approx(expected.y0 * fig.bbox.height)
+        assert box.y1 == pytest.approx(expected.y1 * fig.bbox.height)
+
+    def test_cell_used_when_plot_replaced(self, surface_data):
+        """A reserved axes should use its cell when its plot has been replaced."""
+        fig, ax = kplt.subplots(ncols=2, cbar=True, figsize=(8, 4))
+        reserved = ax[0].cax
+        kplt.surface(surface_data, ax=ax[0])
+        fig.canvas.draw()
+        box = reserved.get_window_extent()
+        expected = reserved.get_subplotspec().get_position(fig)
+        assert box.y1 == pytest.approx(expected.y1 * fig.bbox.height)
+
+    def test_locator_subplotspec(self):
+        """The locator of a reserved axes should report its cell."""
+        fig, ax = kplt.subplots(ncols=2, cbar=True)
+        locator = ax[0].cax.get_axes_locator()
+        assert locator.get_subplotspec() is ax[0].cax.get_subplotspec()
