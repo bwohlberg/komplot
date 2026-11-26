@@ -199,6 +199,16 @@ The colormap range and the volume slice index may be shared between any number o
 Each call to :func:`~komplot.share_slice` or :func:`~komplot.share_cmap` defines a complete share group, which is returned by the call: a plot that belonged to another group for the same property leaves it, and a group left with fewer than two members is dissolved. Plots may be removed from their groups via :func:`~komplot.unshare_slice` and :func:`~komplot.unshare_cmap`, which accept either plots or a share group. Since the colormap range is shared as a relative shift, plots in a colormap share group are not required to have the same colormap range, but all plots in a slice share group are required to have the same number of slices.
 
 
+.. This section documents the API deprecated in version 0.0.5, and is to be
+   deleted when that API is removed, which is step 4 of the list in the
+   docstring of komplot/_deprecated.py.
+
+Deprecated API
+==============
+
+The restructuring of the plot classes and of the property sharing API in version 0.0.5 replaced a number of public names, which remain usable until version 0.0.7. Each use of one of them emits a :class:`DeprecationWarning` and is translated into the corresponding part of the current API: the plot state classes :code:`GenericPlot`, :code:`ZoomablePlot` and :code:`ColorbarPlot`, and the event manager classes :code:`AxesEventManager`, :code:`ZoomEventManager`, :code:`ColorbarEventManager`, :code:`ImageViewEventManager` and :code:`VolumeViewEventManager`, resolve to :class:`~komplot.Plot` and to the feature mixin classes that replace them, and methods :code:`set_cmap_share`, :code:`set_slice_share` and :code:`get_axevman_for_axes` of :class:`~komplot.FigureEventManager` are applied via :func:`~komplot.share_cmap`, :func:`~komplot.share_slice` and :func:`~komplot.plot_for_axes` respectively. Since the sharing functions act on plots rather than on axes, the deprecated sharing methods require that the plots that are to share the property have been created. The event handler methods of the removed event manager classes, and attributes :code:`cmap_share_axes` and :code:`slice_share_axes` of :class:`~komplot.FigureEventManager`, are not supported.
+
+
 Usage Examples
 ==============
 
