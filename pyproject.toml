@@ -1,5 +1,13 @@
 [build-system]
-requires = ["setuptools>=61", "wheel", "setuptools-git-versioning>=2.0,<3", "matplotlib"]
+# The version is computed by a callback that imports the package, so every
+# package imported by komplot/__init__.py is required here as well
+requires = [
+    "setuptools>=61",
+    "wheel",
+    "setuptools-git-versioning>=2.0,<3",
+    "matplotlib",
+    "mpl-help",
+]
 build-backend = "setuptools.build_meta:__legacy__"
 
 [project]
