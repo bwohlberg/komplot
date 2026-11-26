@@ -17,7 +17,9 @@ Version 0.0.5   (xxxx-xx-xx)
   or of each of its rows or columns. A colorbar or slider in reserved space is
   sized and positioned to match the extent of the plots that it represents,
   which is smaller than their gridspec cells when they have a fixed aspect
-  ratio, as an image does.
+  ratio, as an image does. A colorbar shared by a set of plots is placed at a
+  greater distance from them than one representing a single plot, so that the
+  distance indicates which plots it represents.
 • A colorbar is now displayed by default by a plot in an axes for which space
   has been reserved, i.e. the show_cbar parameter of imview and volview now
   defaults to None, meaning that a colorbar is displayed if space has been

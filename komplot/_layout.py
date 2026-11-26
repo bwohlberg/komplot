@@ -46,6 +46,16 @@ SHARED_MODES = ("shared", "row", "col")
 #: Names of the attributes by which a plot axes refers to its reserved axes
 RESERVED_NAMES = ("cax", "sax")
 
+#: Default space between a plot and an axes reserved for it alone, as a
+#: fraction of the size of a plot
+DEFAULT_PAD = 0.02
+
+#: Default space between a set of plots and an axes reserved for all of them,
+#: as a fraction of the size of a plot. It is larger than the space for an
+#: axes representing a single plot so that the greater distance indicates
+#: that the axes represents the set of plots rather than the nearest of them
+SHARED_PAD = 0.06
+
 
 def reserved_axes(axes: Axes, name: str = "cax") -> Optional[Axes]:
     """Get an auxiliary axes reserved for a plot axes by :func:`subplots`.
@@ -136,7 +146,7 @@ class _Track:
         name: str,
         mode: ReservationType,
         size: float,
-        pad: float,
+        pad: Optional[float],
         location: str,
         shape: Tuple[int, int],
     ):
@@ -148,7 +158,9 @@ class _Track:
             size: Size of the reserved track, as a fraction of the size of
                a plot track.
             pad: Space between a plot track and its reserved track, as a
-               fraction of the size of a plot track.
+               fraction of the size of a plot track. If ``None``,
+               :data:`DEFAULT_PAD` is used for a track reserved for a
+               single plot and :data:`SHARED_PAD` for a shared track.
             location: Side of the plot axes on which space is reserved,
                either "right" or "bottom".
             shape: Shape (`nrows`, `ncols`) of the grid of plots.
@@ -177,6 +189,8 @@ class _Track:
                     'Reservation specification "col" requires location "bottom", since '
                     "an axes shared by a column of plots is placed below the column."
                 )
+        if pad is None:
+            pad = SHARED_PAD if isinstance(mode, str) else DEFAULT_PAD
         if size <= 0.0 or pad < 0.0:
             raise ValueError(
                 f"Reservation size for {name} must be positive and pad must be "
@@ -449,10 +463,10 @@ def subplots(
     cbar: ReservationType = False,
     slider: ReservationType = False,
     cbar_size: float = 0.05,
-    cbar_pad: float = 0.02,
+    cbar_pad: Optional[float] = None,
     cbar_location: str = "right",
     slider_size: float = 0.05,
-    slider_pad: float = 0.02,
+    slider_pad: Optional[float] = None,
     slider_location: str = "bottom",
     sharex: ShareType = False,
     sharey: ShareType = False,
@@ -524,12 +538,16 @@ def subplots(
            sliders.
         cbar_size: Size of a colorbar, as a fraction of the size of a plot.
         cbar_pad: Space between a plot and its colorbar, as a fraction of
-           the size of a plot.
+           the size of a plot. If ``None``, a colorbar representing a
+           single plot is placed at a distance of :data:`DEFAULT_PAD`,
+           and one shared by a set of plots at the larger distance
+           :data:`SHARED_PAD`, so that the distance indicates which plots
+           a colorbar represents.
         cbar_location: Side of a plot on which to reserve space for a
            colorbar, either "right" or "bottom".
         slider_size: Size of a slider, as a fraction of the size of a plot.
         slider_pad: Space between a plot and its slider, as a fraction of
-           the size of a plot.
+           the size of a plot, defaulting as for `cbar_pad`.
         slider_location: Side of a plot on which to reserve space for a
            slider, either "right" or "bottom".
         sharex: Share the x axis of the plots. Valid values are ``True``

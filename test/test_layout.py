@@ -15,7 +15,13 @@ from matplotlib.colors import Normalize
 from matplotlib.transforms import Bbox
 
 import komplot as kplt
-from komplot._layout import claim_reserved_axes, reserved_axes, reserved_orientation
+from komplot._layout import (
+    DEFAULT_PAD,
+    SHARED_PAD,
+    claim_reserved_axes,
+    reserved_axes,
+    reserved_orientation,
+)
 
 
 def cell(fig, axs):
@@ -445,3 +451,50 @@ class TestReservedExtent:
         fig, ax = kplt.subplots(ncols=2, cbar=True)
         locator = ax[0].cax.get_axes_locator()
         assert locator.get_subplotspec() is ax[0].cax.get_subplotspec()
+
+
+class TestReservedPad:
+    """Tests for the space between a plot and an axes reserved for it."""
+
+    def test_default_pad(self, image):
+        """A colorbar representing one plot should be at the default distance."""
+        fig, ax = kplt.subplots(ncols=2, cbar=True, figsize=(8, 4))
+        plot = kplt.imview(image, ax=ax[0])
+        fig.canvas.draw()
+        box = plot.axes.get_window_extent()
+        cbox = plot.cbar_axes.get_window_extent()
+        assert cbox.x0 - box.x1 == pytest.approx(DEFAULT_PAD * cell(fig, ax[0])[0])
+
+    @pytest.mark.parametrize("mode", ["shared", "row"])
+    def test_shared_pad(self, image, mode):
+        """A shared colorbar should be at a greater distance than a single one."""
+        assert SHARED_PAD > DEFAULT_PAD
+        fig, ax = kplt.subplots(ncols=2, cbar=mode, figsize=(8, 4))
+        plots = [kplt.imview(image, ax=axs) for axs in ax]
+        fig.canvas.draw()
+        boxes = [plot.axes.get_window_extent() for plot in plots]
+        cbox = ax[0].cax.get_window_extent()
+        assert cbox.x0 - max(box.x1 for box in boxes) == pytest.approx(
+            SHARED_PAD * cell(fig, ax[0])[0]
+        )
+
+    def test_explicit_pad(self, image):
+        """A specified pad should be used whether or not the axes is shared."""
+        for mode in (True, "shared"):
+            fig, ax = kplt.subplots(ncols=2, cbar=mode, cbar_pad=0.01, figsize=(8, 4))
+            plots = [kplt.imview(image, ax=axs) for axs in ax]
+            fig.canvas.draw()
+            boxes = [plot.axes.get_window_extent() for plot in plots]
+            cbox = reserved_axes(ax[1]).get_window_extent()
+            assert cbox.x0 - max(box.x1 for box in boxes) == pytest.approx(
+                0.01 * cell(fig, ax[0])[0]
+            )
+
+    def test_slider_pad(self, volume):
+        """A slider should be at the default distance below its plot."""
+        fig, ax = kplt.subplots(ncols=2, slider=True, figsize=(8, 6))
+        vview = kplt.volview(volume, ax=ax[0])
+        fig.canvas.draw()
+        box = vview.axes.get_window_extent()
+        sbox = vview.slider_axes.get_window_extent()
+        assert box.y0 - sbox.y1 == pytest.approx(DEFAULT_PAD * cell(fig, ax[0])[1])

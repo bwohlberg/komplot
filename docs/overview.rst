@@ -76,7 +76,7 @@ Viewer for 2D images
     imc = imread("imageio:immunohistochemistry.png")
     img = imc[..., 0]
     fig, ax = kplt.subplots(nrows=1, ncols=2, cbar=[False, True], sharex=True, sharey=True,
-			    figsize=(18, 8))
+			    figsize=(16, 8), gridspec_kw={"wspace": 0.1})
     fig.suptitle("Figure Title", fontsize=14)
     kplt.imview(imc, title="Colour Image", ax=ax[0])
     kplt.imview(img, cmap=kplt.cm.coolwarm, title="Monochrome Image", ax=ax[1])
@@ -164,7 +164,7 @@ A single colorbar may also be shared by multiple plots, space for one shared by 
     ivs = [kplt.imview(image, norm=norm, ax=axs) for image, axs in zip(images, ax)]
     kplt.share_cmap(ivs)
 
-A shared colorbar is drawn by the first plot displayed in the axes sharing it, and represents the colormap range of that plot, a warning being emitted if a plot that defers to it has a different range. A reserved axes is sized and positioned to match the extent of the plots that it serves, which is smaller than their gridspec cells when they have a fixed aspect ratio, as an image does: a vertical colorbar extends from the top of the topmost of the plots that it serves to the bottom of the bottommost, whatever the aspect of each of them, and a colorbar or slider representing a single plot matches that plot. Placing the plots in a colormap share group (see `Sharing plot properties`_) ensures that an interactive adjustment of the range of any of them is applied to all.
+A shared colorbar is drawn by the first plot displayed in the axes sharing it, and represents the colormap range of that plot, a warning being emitted if a plot that defers to it has a different range. It is placed at a greater distance from the plots than a colorbar representing a single plot, so that the distance indicates which plots a colorbar represents; both distances may be specified by :code:`cbar_pad`. A reserved axes is sized and positioned to match the extent of the plots that it serves, which is smaller than their gridspec cells when they have a fixed aspect ratio, as an image does: a vertical colorbar extends from the top of the topmost of the plots that it serves to the bottom of the bottommost, whatever the aspect of each of them, and a colorbar or slider representing a single plot matches that plot. Placing the plots in a colormap share group (see `Sharing plot properties`_) ensures that an interactive adjustment of the range of any of them is applied to all.
 
 Since the spacing of the tracks of the layout is specified by the gridspec itself, which matplotlib declines to adjust, a tight layout is not compatible with reserved space; a constrained layout may be used instead.
 
