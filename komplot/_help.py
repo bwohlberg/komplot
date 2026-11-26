@@ -38,11 +38,6 @@ HELP_TITLE = "KomPlot Controls"
 #: Colour theme of the help display, "light" or "dark"
 HELP_THEME = "light"
 
-#: Fraction of the width of the help display occupied by the key column,
-#: wider than the default of :mod:`mpl_help` since some of the mouse
-#: actions described have long names
-HELP_KEY_COLUMN = 0.34
-
 #: Note displayed with the help for the features of a figure as a whole
 FIGURE_HELP_NOTE = (
     "The standard matplotlib shortcuts also apply, including s to save the "
@@ -179,7 +174,6 @@ def attach_help(figure: Figure, plots: Sequence["Plot"]) -> HelpManager:
         title=HELP_TITLE,
         trigger_key=HELP_KEY,
         theme=HELP_THEME,
-        key_column=HELP_KEY_COLUMN,
     )
     manager.add_section(figure_help_section())
     for section in plot_help_sections(plots):
