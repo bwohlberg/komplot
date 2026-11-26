@@ -496,7 +496,10 @@ class ColorbarMixin:
         determines them by autoscaling an array of integer type.
         """
         vmin, vmax = self.axesimage.norm.vmin, self.axesimage.norm.vmax
-        assert vmin is not None and vmax is not None
+        # The limits are tuples for a multivariate norm, which komplot does not
+        # support, matplotlib annotating them as those of the norm base class
+        assert vmin is not None and not isinstance(vmin, tuple)
+        assert vmax is not None and not isinstance(vmax, tuple)
         return float(vmin), float(vmax)
 
     @property
