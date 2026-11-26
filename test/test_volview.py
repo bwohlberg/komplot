@@ -116,6 +116,53 @@ class TestVolview:
         """A divider should be created even without a colorbar."""
         assert kplt.volview(volume).divider is not None
 
+    def test_reserved_slider(self, volume):
+        """A slider should be created in axes reserved for it."""
+        fig, ax = kplt.subplots(ncols=2, slider=[True, False])
+        vview = kplt.volview(volume, ax=ax[0])
+        assert vview.slider_axes is ax[0].sax
+        assert vview.slider_axes.get_visible()
+        assert vview.slider.orientation == "horizontal"
+        # No space is taken from the axes of the slice itself
+        assert vview.divider is None
+
+    def test_reserved_slider_orientation(self, volume):
+        """Slider orientation should follow the shape of the reserved axes."""
+        fig, ax = kplt.subplots(ncols=2, slider=True, slider_location="right")
+        assert kplt.volview(volume, ax=ax[0]).slider.orientation == "vertical"
+
+    def test_reserved_slider_alignment(self, volume, image):
+        """Reserved space should keep a volume view aligned with other plots."""
+        fig, ax = kplt.subplots(ncols=2, cbar=True, slider=[True, False])
+        kplt.volview(volume, ax=ax[0])
+        kplt.imview(image, ax=ax[1])
+        fig.canvas.draw()
+        bounds = [axs.get_window_extent().bounds for axs in ax]
+        assert bounds[0][2] == pytest.approx(bounds[1][2])
+        assert bounds[0][3] == pytest.approx(bounds[1][3])
+
+    def test_reserved_colorbar(self, volume):
+        """A colorbar should be created in axes reserved for it."""
+        fig, ax = kplt.subplots(ncols=2, cbar=[True, False])
+        assert kplt.volview(volume, ax=ax[0]).cbar_axes is ax[0].cax
+        assert kplt.volview(volume, ax=ax[1]).cbar_axes is None
+
+    def test_reserved_colorbar_only(self, volume):
+        """A slider should use a divider when only colorbar space is reserved."""
+        fig, ax = kplt.subplots(ncols=2, cbar=True)
+        vview = kplt.volview(volume, ax=ax[0])
+        assert vview.cbar_axes is ax[0].cax
+        assert vview.divider is not None
+        assert vview.slider_axes is not None
+
+    def test_reserved_slider_only(self, volume):
+        """A colorbar should use a divider when only slider space is reserved."""
+        fig, ax = kplt.subplots(ncols=2, slider=True)
+        vview = kplt.volview(volume, show_cbar=True, ax=ax[0])
+        assert vview.slider_axes is ax[0].sax
+        assert vview.divider is not None
+        assert vview.cbar_axes is not None
+
     def test_specified_axes(self, volume):
         """Display in a specified axes should not create a figure."""
         fig, ax = plt.subplots(nrows=1, ncols=2)

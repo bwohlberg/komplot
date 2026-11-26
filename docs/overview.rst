@@ -75,10 +75,11 @@ Viewer for 2D images
     import komplot as kplt
     imc = imread("imageio:immunohistochemistry.png")
     img = imc[..., 0]
-    fig, ax = kplt.subplots(nrows=1, ncols=2, sharex=True, sharey=True, figsize=(18, 8))
+    fig, ax = kplt.subplots(nrows=1, ncols=2, cbar=[False, True], sharex=True, sharey=True,
+			    figsize=(16, 8), gridspec_kw={"wspace": 0.1})
     fig.suptitle("Figure Title", fontsize=14)
-    kplt.imview(imc, title="Colour Image", show_cbar=None, ax=ax[0])
-    kplt.imview(img, cmap=kplt.cm.coolwarm, title="Monochrome Image", show_cbar=True, ax=ax[1])
+    kplt.imview(imc, title="Colour Image", ax=ax[0])
+    kplt.imview(img, cmap=kplt.cm.coolwarm, title="Monochrome Image", ax=ax[1])
     fig.show()
 
 
@@ -157,6 +158,30 @@ The interactive features of a figure are described in a help display, which is o
     kplt.show_help(iv.figure)
 
 The display itself is provided by the `mpl-help <https://github.com/bwohlberg/mpl-help>`__ package.
+Figure Layout
+=============
+
+A colorbar is usually attached to a plot by taking the space for it from the axes of the plot itself, with the result that a plot with a colorbar is smaller than one without, that the plots of a figure are misaligned, and that part of the space of each plot is occupied by a colorbar rather than by the plot itself. Function :func:`~komplot.subplots`, which is otherwise a drop-in replacement for :func:`matplotlib.pyplot.subplots`, to which it delegates when no space is requested, avoids this by reserving the space within the layout of the figure itself, as additional gridspec tracks, so that the axes of the plots are of equal size whether or not they have a colorbar, and remain so when the figure is resized
+
+.. code-block:: python
+
+    fig, ax = kplt.subplots(nrows=1, ncols=2, cbar=[False, True])
+    kplt.imview(imc, ax=ax[0])
+    kplt.imview(img, ax=ax[1])
+
+The :code:`cbar` parameter specifies the plots for which space is to be reserved: ``True`` for every plot of the grid, or a sequence of bools, in row-major order, for individual plots. Each axes of the grid refers to the axes reserved for it by its :code:`cax` attribute, and a plot displayed in an axes for which space has been reserved displays a colorbar by default, i.e. it is not necessary to specify :code:`show_cbar=True`. Space for the slice selection slider of a :func:`~komplot.volview` plot, which has the same effect on the alignment of the plots of a figure, is reserved in the same way by the :code:`slider` parameter, each axes referring to the axes reserved for it by its :code:`sax` attribute. The side on which space is reserved, its size, and the space between it and the plot, are specified by parameters :code:`cbar_location`, :code:`cbar_size`, and :code:`cbar_pad`, and by the corresponding :code:`slider` parameters. Since the sizes are specified as fractions of the size of a plot, the layout is unchanged by a resize of the figure.
+
+A single colorbar may also be shared by multiple plots, space for one shared by the whole grid of plots being reserved by :code:`cbar="shared"`, and for one shared by each row or column of plots by :code:`cbar="row"` or :code:`cbar="col"` respectively
+
+.. code-block:: python
+
+    fig, ax = kplt.subplots(nrows=1, ncols=3, cbar="shared")
+    ivs = [kplt.imview(image, norm=norm, ax=axs) for image, axs in zip(images, ax)]
+    kplt.share_cmap(ivs)
+
+A shared colorbar is drawn by the first plot displayed in the axes sharing it, and represents the colormap range of that plot, a warning being emitted if a plot that defers to it has a different range. It is placed at a greater distance from the plots than a colorbar representing a single plot, so that the distance indicates which plots a colorbar represents; both distances may be specified by :code:`cbar_pad`. A reserved axes is sized and positioned to match the extent of the plots that it serves, which is smaller than their gridspec cells when they have a fixed aspect ratio, as an image does: a vertical colorbar extends from the top of the topmost of the plots that it serves to the bottom of the bottommost, whatever the aspect of each of them, and a colorbar or slider representing a single plot matches that plot. Placing the plots in a colormap share group (see `Sharing plot properties`_) ensures that an interactive adjustment of the range of any of them is applied to all.
+
+Since the spacing of the tracks of the layout is specified by the gridspec itself, which matplotlib declines to adjust, a tight layout is not compatible with reserved space; a constrained layout may be used instead.
 
 
 Plot Objects

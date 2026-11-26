@@ -87,13 +87,44 @@ class TestPlotSections:
         iview = kplt.imview(image, show_cbar=False)
         assert titles([iview]) == ["Zoom", "Image"]
 
-    def test_image_view_with_invisible_colorbar(self, image):
-        """An invisible colorbar should offer no colormap adjustment.
+    def test_image_view_with_reserved_colorbar(self, image):
+        """A colorbar in reserved space should offer colormap adjustment.
 
-        An invisible colorbar does not respond to mouse scroll events.
+        A plot in an axes for which space has been reserved displays a
+        colorbar without being asked to.
         """
-        iview = kplt.imview(image, show_cbar=None)
-        assert "Colormap Range" not in titles([iview])
+        _, ax = kplt.subplots(nrows=1, ncols=2, cbar=[False, True])
+        views = [kplt.imview(image, ax=axs) for axs in ax]
+        assert titles([views[0]]) == ["Zoom", "Image"]
+        assert titles([views[1]]) == ["Zoom", "Colormap Range", "Image"]
+
+    def test_shared_colorbar(self, image):
+        """A shared colorbar should be described once, by the plot drawing it.
+
+        A plot that defers to a colorbar shared with other plots has no
+        colorbar of its own in which to scroll.
+        """
+        _, ax = kplt.subplots(nrows=1, ncols=2, cbar="shared")
+        views = [kplt.imview(image, ax=axs) for axs in ax]
+        assert titles([views[1]]) == ["Zoom", "Image"]
+        assert titles(views).count("Colormap Range") == 1
+
+    def test_share_group_noted(self, image):
+        """Adjustment of a shared colormap range should be noted as such."""
+        _, ax = kplt.subplots(nrows=1, ncols=2, cbar="shared")
+        views = [kplt.imview(image, ax=axs) for axs in ax]
+        assert section(views, "Colormap Range").note is None
+        kplt.share_cmap(views)
+        assert section(views, "Colormap Range").note == (
+            "An adjustment is applied to every plot of the colormap share group."
+        )
+
+    def test_reserved_slider(self, volume):
+        """A slider in reserved space should be described as a slider."""
+        _, ax = kplt.subplots(nrows=1, ncols=2, slider=True)
+        vview = kplt.volview(volume, ax=ax[0])
+        keys = [binding.key for binding in section([vview], "Volume Slice").bindings]
+        assert keys == ["Shift + Mouse wheel", "Slider click or drag"]
 
     @pytest.mark.parametrize(
         "shape,halves", [((8, 6), ("lower", "upper")), ((4, 12), ("left", "right"))]

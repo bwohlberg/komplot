@@ -21,6 +21,7 @@ from mpl_toolkits.axes_grid1.axes_divider import (
     AxesDivider,  # type: ignore[import-untyped]
 )
 
+from ._layout import claim_reserved_axes, reserved_orientation
 from ._state import ColorbarMixin, Plot, ZoomMixin, data_limits, figure_and_axes
 
 try:
@@ -69,27 +70,42 @@ def _patch_coord_statusbar(fig: Figure):
 def _create_colorbar(
     ax: Axes,
     axim: mpl.image.AxesImage,
-    divider: AxesDivider,
     orient: str,
-    visible: bool = True,
+    divider: Optional[AxesDivider] = None,
+    cbar_axes: Optional[Axes] = None,
 ) -> Axes:
     """Create a colorbar attached to the displayed image.
 
-    If `visible` is ``False``, ensure the colorbar is invisible, for use
-    in maintaining consistent size of image and colorbar region.
+    The colorbar is created in `cbar_axes`, if space has been reserved
+    for it within the layout of the figure (see
+    :func:`komplot.subplots`), and otherwise in an axes created by taking
+    space from the axes of the image itself, which reduces the size of
+    the image with respect to other plots in the same figure.
+
+    Args:
+        ax: Axes of the image.
+        axim: Image with which the colorbar is associated.
+        orient: Orientation of the colorbar, "vertical" or "horizontal".
+        divider: Axes divider with which to create an axes for the
+           colorbar, if `cbar_axes` is not specified.
+        cbar_axes: Axes reserved for the colorbar.
+
+    Returns:
+        The axes of the colorbar.
+
+    Raises:
+        ValueError: If neither `divider` nor `cbar_axes` is specified.
     """
-    pos = "right" if orient == "vertical" else "bottom"
-    cax = divider.append_axes(pos, size="5%", pad=0.2)
-    if visible:
-        plt.colorbar(axim, ax=ax, cax=cax, orientation=orient)
+    if cbar_axes is not None:
+        # An axes reserved within the figure layout is hidden until used
+        cbar_axes.set_visible(True)
+    elif divider is not None:
+        pos = "right" if orient == "vertical" else "bottom"
+        cbar_axes = divider.append_axes(pos, size="5%", pad=0.2)
     else:
-        # See http://chris35wills.github.io/matplotlib_axis
-        cax.set_facecolor("none")
-        for axis in ["top", "bottom", "left", "right"]:
-            cax.spines[axis].set_linewidth(0)
-        cax.set_xticks([])
-        cax.set_yticks([])
-    return cax
+        raise ValueError("Either an axes divider or a colorbar axes must be specified.")
+    plt.colorbar(axim, ax=ax, cax=cbar_axes, orientation=orient)
+    return cbar_axes
 
 
 def _check_image_shape(image: np.ndarray):
@@ -149,7 +165,7 @@ class ImageMixin:
         origin: str = "upper",
         imshow_kwargs: Optional[dict] = None,
         make_divider: bool = False,
-        show_cbar: Optional[bool] = False,
+        show_cbar: Optional[bool] = None,
         cmap: Optional[Union[Colormap, str]] = None,
         title: Optional[str] = None,
         cmap_data_limits: Optional[Tuple[float, float]] = None,
@@ -171,8 +187,10 @@ class ImageMixin:
             make_divider: If ``True``, create an axes divider even when
                 no colorbar is required, for use in attaching other
                 auxiliary axes to the image.
-            show_cbar: Flag indicating whether to display a colorbar. If
-                set to ``None``, create an invisible colorbar.
+            show_cbar: Flag indicating whether to display a colorbar.
+                If ``None``, a colorbar is displayed if space has been
+                reserved for one within the layout of the figure (see
+                :func:`komplot.subplots`), and not otherwise.
             cmap: Color map for the image.
             title: Axes title.
             cmap_data_limits: Range of the data bounding the adjustment
@@ -220,18 +238,24 @@ class ImageMixin:
         if HAVE_MPLCRS:
             mplcrs.cursor(axim)
 
+        reserved, owner = claim_reserved_axes(ax, "cax")
+        if show_cbar is None:
+            # Display a colorbar if space has been reserved for one
+            show_cbar = reserved is not None or owner is not None
         divider = make_axes_locatable(ax) if make_divider else None
         cbar_orient: Optional[str] = None
-        cbar_visible, cax = False, None
-        if show_cbar or show_cbar is None:
-            if divider is None:
-                divider = make_axes_locatable(ax)
-            cbar_orient = (
-                "vertical" if image.shape[0] >= image.shape[1] else "horizontal"
-            )
-            cbar_visible = show_cbar is not None
+        cax = None
+        if show_cbar and owner is None:
+            if reserved is None:
+                if divider is None:
+                    divider = make_axes_locatable(ax)
+                cbar_orient = (
+                    "vertical" if image.shape[0] >= image.shape[1] else "horizontal"
+                )
+            else:
+                cbar_orient = reserved_orientation(reserved)
             cax = _create_colorbar(
-                ax, axim, divider, orient=cbar_orient, visible=cbar_visible
+                ax, axim, cbar_orient, divider=divider, cbar_axes=reserved
             )
 
         if cmap_data_limits is None:
@@ -242,7 +266,7 @@ class ImageMixin:
             divider=divider,
             cbar_axes=cax,
             cbar_orient=cbar_orient,
-            cbar_visible=cbar_visible,
+            cbar_owner=owner if show_cbar else None,
             cmap_data_limits=cmap_data_limits,
         )
 
@@ -295,7 +319,7 @@ class ImageView(ImageMixin, ColorbarMixin, ZoomMixin, Plot):
         origin: str = "upper",
         imshow_kwargs: Optional[dict] = None,
         make_divider: bool = False,
-        show_cbar: Optional[bool] = False,
+        show_cbar: Optional[bool] = None,
         cmap: Optional[Union[Colormap, str]] = None,
         title: Optional[str] = None,
         figsize: Optional[Tuple[int, int]] = None,
@@ -352,7 +376,7 @@ def imview(
     origin: str = "upper",
     vmin_quantile: float = 0.0,
     norm: Optional[Normalize] = None,
-    show_cbar: Optional[bool] = False,
+    show_cbar: Optional[bool] = None,
     cmap: Optional[Union[Colormap, str]] = None,
     title: Optional[str] = None,
     figsize: Optional[Tuple[int, int]] = None,
@@ -396,10 +420,12 @@ def imview(
             ``None``, it is used to define the color map range instead of
             the :code:`vmin` and :code:`vmax` determined by
             :code:`vmin_quantile`.
-        show_cbar: Flag indicating whether to display a colorbar. If set
-            to ``None``, create an invisible colorbar so that the image
-            occupies the same amount of space in a subplot as one with a
-            visible colorbar.
+        show_cbar: Flag indicating whether to display a colorbar. If
+            ``None``, a colorbar is displayed if space has been reserved
+            for one within the layout of the figure (see
+            :func:`komplot.subplots`), and not otherwise. Space reserved
+            in this way, rather than taken from the axes of the image
+            itself, keeps the plots of a figure in alignment.
         cmap: Color map for image or volume slices. If none specifed,
             defaults to :code:`matplotlib.cm.Greys_r` for monochrome
             image.

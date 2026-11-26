@@ -29,6 +29,35 @@ class TestContour:
         assert isinstance(cplot.cbar_axes, Axes)
         assert isinstance(cplot.divider, AxesDivider)
 
+    def test_reserved_colorbar(self, surface_data):
+        """A colorbar should be created in axes reserved for it."""
+        fig, ax = kplt.subplots(ncols=2, cbar=True)
+        cplot = kplt.contour(surface_data, ax=ax[0])
+        assert cplot.cbar_axes is ax[0].cax
+        assert cplot.cbar_axes.get_visible()
+        assert cplot.cbar_orient == "vertical"
+        # No space is taken from the axes of the plot itself
+        assert cplot.divider is None
+
+    def test_shared_colorbar(self, surface_data):
+        """A colorbar shared by multiple plots should be drawn by the first."""
+        fig, ax = kplt.subplots(ncols=2, cbar="shared")
+        cplot0 = kplt.contour(surface_data, ax=ax[0])
+        cplot1 = kplt.contour(surface_data, ax=ax[1])
+        assert cplot0.cbar_axes is ax[0].cax
+        assert cplot1.cbar_axes is None
+        assert cplot1.cbar_orient is None
+
+    def test_reserved_colorbar_alignment(self, surface_data, image):
+        """Reserved space should keep a contour plot aligned with other plots."""
+        fig, ax = kplt.subplots(ncols=2, cbar=True)
+        kplt.contour(surface_data, ax=ax[0])
+        kplt.imview(image, ax=ax[1])
+        fig.canvas.draw()
+        cells = [axs.get_subplotspec().get_position(fig) for axs in ax]
+        assert cells[0].width == pytest.approx(cells[1].width)
+        assert cells[0].height == pytest.approx(cells[1].height)
+
     def test_default_axis_values(self, surface_data):
         """Axis ranges should default to the array indices."""
         cplot = kplt.contour(surface_data)

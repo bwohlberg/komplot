@@ -7,6 +7,28 @@ Version 0.0.5   (xxxx-xx-xx)
 ----------------------------
 
 • Add test suite.
+• Add function subplots, a drop-in replacement for matplotlib.pyplot.subplots
+  that can reserve space for colorbars and volume slice sliders within the
+  layout of the figure, via parameters cbar and slider, instead of taking it
+  from the axes of the plots themselves. The plots of a figure are thereby of
+  equal size whether or not they have a colorbar, and remain so when the
+  figure is resized, and no space is wasted alongside plots that do not have
+  one. A single colorbar may also be shared by all of the plots of a figure,
+  or of each of its rows or columns. A colorbar or slider in reserved space is
+  sized and positioned to match the extent of the plots that it represents,
+  which is smaller than their gridspec cells when they have a fixed aspect
+  ratio, as an image does. A colorbar shared by a set of plots is placed at a
+  greater distance from them than one representing a single plot, so that the
+  distance indicates which plots it represents.
+• A colorbar is now displayed by default by a plot in an axes for which space
+  has been reserved, i.e. the show_cbar parameter of imview and volview now
+  defaults to None, meaning that a colorbar is displayed if space has been
+  reserved for one.
+• The invisible colorbar created by passing show_cbar=None to imview or
+  volview, which was the previous mechanism for maintaining the alignment of
+  the plots of a figure, has been removed in favour of reserved space, which
+  is more reliable and does not reduce the size of the plots. The
+  cbar_visible attribute of a plot with a colorbar has been removed.
 • Add help for the interactive features of a figure, displayed and hidden by
   pressing the "?" key within it, and also by new function show_help. The help
   is assembled from the classes of which the plots of the figure are composed,

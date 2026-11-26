@@ -158,24 +158,74 @@ class TestImview:
         iview = kplt.imview(wide_image, show_cbar=True)
         assert iview.cbar_axes._colorbar.orientation == "horizontal"
 
-    def test_invisible_colorbar(self, image):
-        """An invisible colorbar should be created when requested."""
-        iview = kplt.imview(image, show_cbar=None)
-        assert isinstance(iview.cbar_axes, Axes)
-        assert not hasattr(iview.cbar_axes, "_colorbar")
-        assert list(iview.cbar_axes.get_xticks()) == []
-        assert list(iview.cbar_axes.get_yticks()) == []
+    def test_reserved_colorbar(self, image):
+        """A colorbar should be created in axes reserved for it."""
+        fig, ax = kplt.subplots(nrows=1, ncols=2, cbar=[False, True])
+        iview0 = kplt.imview(image, ax=ax[0])
+        iview1 = kplt.imview(image, ax=ax[1])
+        assert iview0.cbar_axes is None
+        assert iview1.cbar_axes is ax[1].cax
+        assert iview1.cbar_axes.get_visible()
+        # No space is taken from the axes of the image itself
+        assert iview1.divider is None
 
-    def test_invisible_colorbar_size(self, image):
-        """An invisible colorbar should occupy the space of a visible one."""
-        fig, ax = plt.subplots(nrows=1, ncols=2)
-        iview0 = kplt.imview(image, show_cbar=None, ax=ax[0])
-        iview1 = kplt.imview(image, show_cbar=True, ax=ax[1])
+    def test_reserved_colorbar_alignment(self, image, wide_image):
+        """Reserved space should keep the plots of a figure aligned."""
+        fig, ax = kplt.subplots(nrows=1, ncols=2, cbar=[False, True])
+        kplt.imview(image, ax=ax[0])
+        kplt.imview(image, ax=ax[1])
         fig.canvas.draw()
-        bounds0 = iview0.axes.get_window_extent().bounds
-        bounds1 = iview1.axes.get_window_extent().bounds
-        assert bounds0[2] == pytest.approx(bounds1[2])
-        assert bounds0[3] == pytest.approx(bounds1[3])
+        cells = [axs.get_subplotspec().get_position(fig) for axs in ax]
+        assert cells[0].width == pytest.approx(cells[1].width)
+        assert cells[0].height == pytest.approx(cells[1].height)
+        bounds = [axs.get_window_extent().bounds for axs in ax]
+        assert bounds[0][2] == pytest.approx(bounds[1][2])
+        assert bounds[0][3] == pytest.approx(bounds[1][3])
+
+    def test_reserved_colorbar_resize(self, image):
+        """Reserved space should keep the plots aligned when resized."""
+        fig, ax = kplt.subplots(nrows=1, ncols=2, cbar=[False, True], figsize=(10, 4))
+        kplt.imview(image, ax=ax[0])
+        kplt.imview(image, ax=ax[1])
+        for size in ((10, 4), (5, 4), (12, 8)):
+            fig.set_size_inches(*size, forward=True)
+            fig.canvas.draw()
+            bounds = [axs.get_window_extent().bounds for axs in ax]
+            assert bounds[0][2] == pytest.approx(bounds[1][2])
+            assert bounds[0][3] == pytest.approx(bounds[1][3])
+
+    def test_reserved_colorbar_declined(self, image):
+        """A colorbar should not be displayed in reserved space if not required."""
+        fig, ax = kplt.subplots(nrows=1, ncols=2, cbar=True)
+        iview = kplt.imview(image, show_cbar=False, ax=ax[0])
+        assert iview.cbar_axes is None
+        assert iview.cbar_orient is None
+        assert not ax[0].cax.get_visible()
+
+    def test_shared_colorbar(self, image):
+        """A colorbar shared by multiple plots should be drawn by the first."""
+        fig, ax = kplt.subplots(nrows=1, ncols=2, cbar="shared")
+        iview0 = kplt.imview(image, ax=ax[0])
+        iview1 = kplt.imview(image, ax=ax[1])
+        assert iview0.cbar_axes is ax[0].cax
+        assert iview1.cbar_axes is None
+        assert iview1.cbar_orient is None
+        # The plot that drew the colorbar owns its axes
+        assert kplt.plot_for_axes(ax[0].cax) is iview0
+
+    def test_shared_colorbar_range_warning(self, image):
+        """A plot sharing a colorbar of a different range should warn."""
+        fig, ax = kplt.subplots(nrows=1, ncols=2, cbar="shared")
+        kplt.imview(image, ax=ax[0])
+        with pytest.warns(UserWarning, match="sharing a colorbar"):
+            kplt.imview(2.0 * image, ax=ax[1])
+
+    def test_shared_colorbar_same_range(self, image, recwarn):
+        """A plot sharing a colorbar of the same range should not warn."""
+        fig, ax = kplt.subplots(nrows=1, ncols=2, cbar="shared")
+        kplt.imview(image, ax=ax[0])
+        kplt.imview(image, ax=ax[1])
+        assert not [w for w in recwarn if issubclass(w.category, UserWarning)]
 
     def test_data_cursor(self, image, monkeypatch):
         """A data cursor should be attached when mplcursors is available."""
@@ -213,28 +263,33 @@ class TestImview:
         assert iview.figure is fig
         assert plt.get_fignums() == [fig.number]
 
-    @pytest.mark.parametrize(
-        "show_cbar,visible", [(True, True), (None, False), (False, False)]
-    )
-    def test_colorbar_visibility(self, image, show_cbar, visible):
-        """Colorbar visibility should be recorded."""
+    @pytest.mark.parametrize("show_cbar", [True, False, None])
+    def test_colorbar_presence(self, image, show_cbar):
+        """A colorbar should be displayed only when required."""
         iview = kplt.imview(image, show_cbar=show_cbar)
-        assert iview.cbar_visible is visible
-        assert (iview.cbar_axes is not None) == (show_cbar is not False)
-        assert (iview.cbar_orient is None) == (show_cbar is False)
+        # Without space reserved for one, a colorbar is displayed only on request
+        assert (iview.cbar_axes is not None) == bool(show_cbar)
+        assert (iview.cbar_orient is None) == (not show_cbar)
 
     @pytest.mark.parametrize("show_cbar", [True, None])
-    def test_colorbar_orientation(self, image, wide_image, show_cbar):
-        """Colorbar orientation should be determined by the image shape."""
-        assert kplt.imview(image, show_cbar=show_cbar).cbar_orient == "vertical"
-        assert kplt.imview(wide_image, show_cbar=show_cbar).cbar_orient == "horizontal"
+    def test_reserved_colorbar_presence(self, image, show_cbar):
+        """A colorbar should be displayed by default in reserved space."""
+        fig, ax = kplt.subplots(cbar=True)
+        iview = kplt.imview(image, show_cbar=show_cbar, ax=ax)
+        assert iview.cbar_axes is ax.cax
 
-    def test_invisible_colorbar_scroll(self, image):
-        """An invisible colorbar should not respond to a scroll event."""
-        iview = kplt.imview(image, show_cbar=None)
-        scroll_in_axes(iview.cbar_axes, 0.5, 0.25, button="up")
-        scroll_in_axes(iview.cbar_axes, 0.5, 0.75, button="down")
-        assert iview.cmap_limits == (iview.vmin_ref, iview.vmax_ref)
+    def test_colorbar_orientation(self, image, wide_image):
+        """Colorbar orientation should be determined by the image shape."""
+        assert kplt.imview(image, show_cbar=True).cbar_orient == "vertical"
+        assert kplt.imview(wide_image, show_cbar=True).cbar_orient == "horizontal"
+
+    @pytest.mark.parametrize(
+        "location,orient", [("right", "vertical"), ("bottom", "horizontal")]
+    )
+    def test_reserved_colorbar_orientation(self, image, location, orient):
+        """Colorbar orientation should follow the shape of the reserved axes."""
+        fig, ax = kplt.subplots(cbar=True, cbar_location=location)
+        assert kplt.imview(image, ax=ax).cbar_orient == orient
 
     def test_cmap_adjustment_bounds(self, image):
         """Colormap adjustment should be bounded by the image range."""

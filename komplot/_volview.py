@@ -18,6 +18,7 @@ from mpl_toolkits.axes_grid1.axes_divider import (
 )
 
 from ._imview import ImageMixin, _cmap_limit_kwargs
+from ._layout import claim_reserved_axes, reserved_orientation
 from ._state import (
     ColorbarMixin,
     Plot,
@@ -29,11 +30,44 @@ from ._state import (
 
 
 def _create_slider(
-    divider: AxesDivider, volume: np.ndarray, orient: str, pad: float = 0.1
+    volume: np.ndarray,
+    orient: str,
+    divider: Optional[AxesDivider] = None,
+    slider_axes: Optional[Axes] = None,
+    pad: float = 0.1,
 ) -> Tuple[Axes, Slider]:
-    """Create a volume slice slider attached to the displayed slice."""
-    pos = "left" if orient == "vertical" else "bottom"
-    sax = divider.append_axes(pos, size="5%", pad=pad)
+    """Create a volume slice slider attached to the displayed slice.
+
+    The slider is created in `slider_axes`, if space has been reserved
+    for it within the layout of the figure (see
+    :func:`komplot.subplots`), and otherwise in an axes created by taking
+    space from the axes of the displayed slice itself, which reduces the
+    size of the slice with respect to other plots in the same figure.
+
+    Args:
+        volume: Volume of which a slice is displayed.
+        orient: Orientation of the slider, "vertical" or "horizontal".
+        divider: Axes divider with which to create an axes for the
+           slider, if `slider_axes` is not specified.
+        slider_axes: Axes reserved for the slider.
+        pad: Space between the slice and the slider, in inches, when
+           `divider` is used.
+
+    Returns:
+        A tuple consisting of the axes of the slider and the slider.
+
+    Raises:
+        ValueError: If neither `divider` nor `slider_axes` is specified.
+    """
+    if slider_axes is not None:
+        # An axes reserved within the figure layout is hidden until used
+        slider_axes.set_visible(True)
+        sax = slider_axes
+    elif divider is not None:
+        pos = "left" if orient == "vertical" else "bottom"
+        sax = divider.append_axes(pos, size="5%", pad=pad)
+    else:
+        raise ValueError("Either an axes divider or a slider axes must be specified.")
     slider = Slider(
         ax=sax,
         label="Slice",
@@ -113,7 +147,7 @@ class VolumeView(SliceMixin, ImageMixin, ColorbarMixin, ZoomMixin, Plot):
         interpolation: str = "nearest",
         origin: str = "upper",
         imshow_kwargs: Optional[dict] = None,
-        show_cbar: Optional[bool] = False,
+        show_cbar: Optional[bool] = None,
         cmap: Optional[Union[Colormap, str]] = None,
         title: Optional[str] = None,
         figsize: Optional[Tuple[int, int]] = None,
@@ -146,27 +180,34 @@ class VolumeView(SliceMixin, ImageMixin, ColorbarMixin, ZoomMixin, Plot):
         fig, axs, new_fig = figure_and_axes(ax, figsize=figsize, fignum=fignum)
         super().__init__(figure=fig, axes=axs, new_figure=new_fig)
 
+        reserved_sax, _ = claim_reserved_axes(axs, "sax")
         self.init_image(
             image,
             interpolation=interpolation,
             origin=origin,
             imshow_kwargs=imshow_kwargs,
-            make_divider=True,
+            make_divider=reserved_sax is None,
             show_cbar=show_cbar,
             cmap=cmap,
             title=title,
             cmap_data_limits=data_limits(volume),
         )
 
-        pad = 0.35 if show_cbar and self.cbar_orient == "horizontal" else 0.1
-        if image.shape[0] >= 2 * image.shape[1]:
-            slider_orient = "vertical"
-            pad = 0.25
+        if reserved_sax is None:
+            pad = 0.35 if self.cbar_orient == "horizontal" else 0.1
+            if image.shape[0] >= 2 * image.shape[1]:
+                slider_orient = "vertical"
+                pad = 0.25
+            else:
+                slider_orient = "horizontal"
+            sax, vol_slider = _create_slider(
+                volume, slider_orient, divider=self.divider, pad=pad
+            )
         else:
-            slider_orient = "horizontal"
-        sax, vol_slider = _create_slider(
-            self.divider, volume, orient=slider_orient, pad=pad
-        )
+            slider_orient = reserved_orientation(reserved_sax)
+            sax, vol_slider = _create_slider(
+                volume, slider_orient, slider_axes=reserved_sax
+            )
 
         self.init_slice(volume, slider_axes=sax, slider=vol_slider)
         self.init_zoom()
@@ -181,7 +222,7 @@ def volview(
     origin: str = "upper",
     vmin_quantile: float = 0.0,
     norm: Optional[Normalize] = None,
-    show_cbar: Optional[bool] = False,
+    show_cbar: Optional[bool] = None,
     cmap: Optional[Union[Colormap, str]] = None,
     title: Optional[str] = None,
     figsize: Optional[Tuple[int, int]] = None,
@@ -229,10 +270,13 @@ def volview(
             ``None``, it is used to define the color map range instead of
             the :code:`vmin` and :code:`vmax` determined by
             :code:`vmin_quantile`.
-        show_cbar: Flag indicating whether to display a colorbar. If set
-            to ``None``, create an invisible colorbar so that the image
-            occupies the same amount of space in a subplot as one with a
-            visible colorbar.
+        show_cbar: Flag indicating whether to display a colorbar. If
+            ``None``, a colorbar is displayed if space has been reserved
+            for one within the layout of the figure (see
+            :func:`komplot.subplots`), and not otherwise. Space reserved
+            in this way, rather than taken from the axes of the slice
+            itself, keeps the plots of a figure in alignment, as does
+            space reserved for the slice selection slider.
         cmap: Color map for image or volume slices. If none specifed,
             defaults to :code:`matplotlib.cm.Greys_r` for monochrome
             image.
