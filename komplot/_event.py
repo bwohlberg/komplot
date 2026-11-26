@@ -5,29 +5,29 @@
 # and user license can be found in the 'LICENSE.txt' file distributed
 # with the package.
 
-"""Event handling for interactive features."""
+"""Figure-level event handling for interactive features."""
 
 from __future__ import annotations
 
-from typing import Dict, List, Union
+from typing import TYPE_CHECKING, List, Optional
 
 import matplotlib.pyplot as plt
-import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.backend_bases import Event
 from matplotlib.figure import Figure
 
-from ._state import ColorbarPlot, GenericPlot, ZoomablePlot
+if TYPE_CHECKING:
+    from ._state import Plot
 
 
 class FigureEventManager:
     """Manager for figure-based events.
 
-    Manage key-press events, and maintain a record of associated
-    axes and their manager instances. The key-press events provide
-    monitoring of keys used as modifiers for other events (e.g. mouse
-    scroll while shift is depressed) and also support the following
-    keyboard shortcuts:
+    Manage key-press events, dispatch mouse scroll events to the plot to
+    which they are directed, and maintain a record of the plots attached
+    to the figure. The key-press events provide monitoring of keys used
+    as modifiers for other events (e.g. mouse scroll while shift is
+    depressed) and also support the following keyboard shortcuts:
 
     *q*
        Close figure. (This is also a standard keyboard shortcut.)
@@ -51,92 +51,100 @@ class FigureEventManager:
         Args:
             fig: Figure to which this manager is attached.
             fig_scale: Scaling factor for figure scaling keyboard shortcut.
+
+        Raises:
+            RuntimeError: If the figure already has a manager attached.
         """
-        self.fig = fig
-        self.key_pressed = {k: False for k in self.monitored_keys}
-        self.slice_share_axes: List[Axes] = []
-        self.cmap_share_axes: List[Axes] = []
-        self.axevman_from_ax: Dict[Axes, AxesEventManager] = {}
-
-        def key_press(event: Event):
-            """Callback for key press events."""
-            assert hasattr(event, "key")
-            if event.key == "q":
-                plt.close(fig)
-            elif event.key == "pageup":
-                fig.set_size_inches(fig_scale * fig.get_size_inches(), forward=True)  # type: ignore[arg-type]
-            elif event.key == "pagedown":
-                fig.set_size_inches(fig.get_size_inches() / fig_scale, forward=True)  # type: ignore[arg-type]
-            elif event.key in self.monitored_keys:
-                self.key_pressed[event.key] = True
-
-        def key_release(event: Event):
-            """Callback for key release events.
-
-            If the released key is in the list of monitored keys, update
-            its status record."""
-            assert hasattr(event, "key")
-            if event.key in self.monitored_keys:
-                self.key_pressed[event.key] = False
-
-        def figure_leave(event: Event):
-            """Callback for figure leave events.
-
-            Reset the status of all monitored keys when the cursor leaves
-            the figure since key release events will no longer be
-            registered.
-            """
-            self.key_pressed = {k: False for k in self.monitored_keys}
-
-        # Attach this event manager to the figure and connect callbacks
         if hasattr(fig, "_event_manager"):
             raise RuntimeError(f"Figure {fig} already has an event manager attached.")
+
+        self.fig = fig
+        self.fig_scale = fig_scale
+        self.key_pressed = {k: False for k in self.monitored_keys}
+        self.plots: List[Plot] = []
+
+        # Attach this event manager to the figure and connect callbacks
         fig._event_manager = self  # type: ignore[attr-defined]
-        fig.canvas.mpl_connect("key_press_event", key_press)
-        fig.canvas.mpl_connect("key_release_event", key_release)
-        fig.canvas.mpl_connect("figure_leave_event", figure_leave)
+        # See https://github.com/matplotlib/ipympl/issues/240 and
+        #     https://github.com/matplotlib/ipympl/pull/235
+        fig.canvas.capture_scroll = True  # type: ignore[attr-defined]
+        fig.canvas.mpl_connect("key_press_event", self.key_press_handler)
+        fig.canvas.mpl_connect("key_release_event", self.key_release_handler)
+        fig.canvas.mpl_connect("figure_leave_event", self.figure_leave_handler)
+        fig.canvas.mpl_connect("scroll_event", self.scroll_event_handler)
 
-    def register_axevman_for_axes(self, ax: Axes, axem: AxesEventManager):
-        """Register the axes event manager for an axes instance.
+    def key_press_handler(self, event: Event):
+        """Callback for key press events."""
+        assert hasattr(event, "key")
+        if event.key == "q":
+            plt.close(self.fig)
+        elif event.key == "pageup":
+            self.fig.set_size_inches(
+                self.fig_scale * self.fig.get_size_inches(), forward=True  # type: ignore[arg-type]
+            )
+        elif event.key == "pagedown":
+            self.fig.set_size_inches(
+                self.fig.get_size_inches() / self.fig_scale, forward=True  # type: ignore[arg-type]
+            )
+        elif event.key in self.monitored_keys:
+            self.key_pressed[event.key] = True
 
-        Args:
-            axem: Axes event manager.
-            ax: Axes.
+    def key_release_handler(self, event: Event):
+        """Callback for key release events.
+
+        If the released key is in the list of monitored keys, update its
+        status record.
         """
-        self.axevman_from_ax[ax] = axem
+        assert hasattr(event, "key")
+        if event.key in self.monitored_keys:
+            self.key_pressed[event.key] = False
 
-    def get_axevman_for_axes(self, ax: Axes):
-        """Retrieve the axes event manager associated with an axes.
+    def figure_leave_handler(self, event: Event):
+        """Callback for figure leave events.
+
+        Reset the status of all monitored keys when the cursor leaves the
+        figure since key release events will no longer be registered.
+        """
+        self.key_pressed = {k: False for k in self.monitored_keys}
+
+    def scroll_event_handler(self, event: Event):
+        """Callback for mouse scroll events.
+
+        Dispatch the event to the plot that owns the axes in which it
+        occurred, if any.
+        """
+        assert hasattr(event, "inaxes")
+        if event.inaxes is None:
+            return
+        plot = self.plot_for_axes(event.inaxes)
+        if plot is not None:
+            plot.handle_scroll(event)
+
+    def register_plot(self, plot: Plot):
+        """Add a plot to the record of plots attached to the figure.
 
         Args:
-            ax: Axes.
+            plot: Plot to register.
+        """
+        self.plots.append(plot)
+
+    def plot_for_axes(self, axes: Axes) -> Optional[Plot]:
+        """Get the plot that owns an axes.
+
+        An axes is owned by a plot if it is the primary axes of the plot,
+        or an auxiliary axes of the plot, such as the axes of a colorbar
+        or of a slice selection slider.
+
+        Args:
+            axes: Axes for which the owning plot is required.
 
         Returns:
-            The axes event manager associated with an axes.
+            The plot owning :code:`axes`, or ``None`` if there is none.
         """
-        return self.axevman_from_ax.get(ax)
-
-    def set_slice_share(self, axes: Union[List[Axes], np.ndarray]):
-        """Define a set of volume slice sharing axes.
-
-        Args:
-            axes: List of axes.
-        """
-        if isinstance(axes, np.ndarray):
-            self.slice_share_axes = axes.ravel().tolist()
-        else:
-            self.slice_share_axes = list(axes)
-
-    def set_cmap_share(self, axes: Union[List[Axes], np.ndarray]):
-        """Define a set of colormap sharing axes.
-
-        Args:
-            axes: List of axes.
-        """
-        if isinstance(axes, np.ndarray):
-            self.cmap_share_axes = axes.ravel().tolist()
-        else:
-            self.cmap_share_axes = list(axes)
+        for plot in self.plots:
+            if plot.owns_axes(axes):
+                return plot
+        return None
 
     @staticmethod
     def attached_manager(fig: Figure, error: bool = False):
@@ -146,6 +154,10 @@ class FigureEventManager:
             fig: Figure.
             error: If ``True``, raise an exception if no figure manager
                 attached.
+
+        Returns:
+            The attached figure event manager, or ``None`` if there is
+            none and `error` is ``False``.
 
         Raises:
             RuntimeError: If `error` parameter is ``True`` and no figure
@@ -166,6 +178,9 @@ def figure_event_manager(fig: Figure, error: bool = True) -> FigureEventManager:
         error: If ``True``, raise an exception if no figure manager
             attached.
 
+    Returns:
+        The attached figure event manager.
+
     Raises:
         RuntimeError: If `error` parameter is ``True`` and no figure
             manager attached.
@@ -173,164 +188,51 @@ def figure_event_manager(fig: Figure, error: bool = True) -> FigureEventManager:
     return FigureEventManager.attached_manager(fig, error=error)
 
 
-class AxesEventManager:
-    """Base class for axes-based event managers.
+def attach_figure_event_manager(fig: Figure) -> FigureEventManager:
+    """Get the figure event manager attached to a figure, creating one if required.
 
-    Base class for axes-based event managers.
+    Args:
+        fig: Figure.
+
+    Returns:
+        The figure event manager attached to :code:`fig`.
     """
-
-    def __init__(
-        self, axes: Axes, fig_event_man: FigureEventManager, plot: GenericPlot
-    ):
-        """
-        Args:
-            axes: Axes to which this manager is attached.
-            fig_event_man: The figure event manage for the figure to
-               which :code:`axes` belong.
-            plot: A plot state object.
-        """
-        self.axes = axes
-        self.fig_event_man = fig_event_man
-        self.plot = plot
-        fig_event_man.register_axevman_for_axes(axes, self)
-
-        # See https://github.com/matplotlib/ipympl/issues/240 and
-        #     https://github.com/matplotlib/ipympl/pull/235
-        fig_event_man.fig.canvas.capture_scroll = True  # type: ignore[attr-defined]
-
-        if hasattr(axes, "_event_manager"):
-            raise RuntimeError(f"Axes {axes} already has an event manager attached.")
-        axes._event_manager = self  # type: ignore[attr-defined]
+    fem = FigureEventManager.attached_manager(fig)
+    if fem is None:
+        fem = FigureEventManager(fig)  # constructed object attaches itself to fig
+    return fem
 
 
-class ZoomEventManager(AxesEventManager):
-    """Manager for axis zoom events.
+def plots(fig: Figure) -> List[Plot]:
+    """Get the plots attached to a figure.
 
-    Manage axis zoom via mouse wheel scroll.
+    Args:
+        fig: Figure.
+
+    Returns:
+        List of the plots attached to :code:`fig`, in the order in which
+        they were created.
     """
-
-    plot: ZoomablePlot
-
-    def __init__(
-        self,
-        axes: Axes,
-        fig_event_man: FigureEventManager,
-        zplot: ZoomablePlot,
-        zoom_scale: float = 2.0,
-    ):
-        """
-        Args:
-            axes: Axes to which this manager is attached.
-            fig_event_man: The figure event manage for the figure to
-               which :code:`axes` belong.
-            zplot: A plot state of type :class:`ZoomablePlot`.
-            zoom_scale: Scaling factor for mouse wheel zoom.
-        """
-        super().__init__(axes, fig_event_man, zplot)
-        self.zoom_scale = zoom_scale
-
-        self.fig_event_man.fig.canvas.mpl_connect(
-            "scroll_event", self.scroll_event_handler
-        )
-        axes.callbacks.connect("xlim_changed", self.xylim_changed_handler)
-        axes.callbacks.connect("ylim_changed", self.xylim_changed_handler)
-
-    def scroll_event_handler(self, event: Event):
-        """Calback for mouse scroll events."""
-        assert hasattr(event, "inaxes")
-        if event.inaxes == self.axes:
-            if not any(self.fig_event_man.key_pressed.values()):  # zoom
-                self.zoom_event_handler(event)
-
-    def zoom_event_handler(self, event: Event):
-        """Handle axes zoom event."""
-        assert (
-            hasattr(event, "button")
-            and hasattr(event, "xdata")
-            and hasattr(event, "ydata")
-        )
-        if event.button == "up":  # Deal with zoom in
-            scale_factor = 1.0 / self.zoom_scale
-        elif event.button == "down":  # Deal with zoom out
-            scale_factor = self.zoom_scale
-        # Get event location
-        xdata = event.xdata
-        ydata = event.ydata
-        # Ensure cursor is over valid region of plot
-        if not (xdata is None or ydata is None):
-            self.plot.zoom_view(xdata, ydata, scale_factor)
-
-    def xylim_changed_handler(self, axes: Axes):
-        """Callback for changes to axes limits."""
-        self.plot.zoom_toolbar_message()
+    fem = FigureEventManager.attached_manager(fig)
+    return [] if fem is None else list(fem.plots)
 
 
-class ColorbarEventManager(ZoomEventManager):
-    """Manager for colorbar events.
+def plot_for_axes(axes: Axes) -> Optional[Plot]:
+    """Get the plot that owns an axes.
 
-    Manage colormap :code:`vmin` and :code:`vmax` adjustment via mouse
-    scroll in a colorbar. Scrolling in the bottom/left half of the
-    colorbar adjusts :code:`vmin`, and scrolling in the top/right half of
-    the colorbar adjusts :code:`vmax`. Axis zoom events on mouse scroll
-    are also supported via the :class:`ZoomEventManager` base class.
+    An axes is owned by a plot if it is the primary axes of the plot, or
+    an auxiliary axes of the plot, such as the axes of a colorbar or of a
+    slice selection slider. If more than one plot was created in the same
+    axes, the first of them owns it.
+
+    Args:
+        axes: Axes for which the owning plot is required.
+
+    Returns:
+        The plot owning :code:`axes`, or ``None`` if there is none.
     """
-
-    plot: ColorbarPlot
-
-    def __init__(
-        self,
-        axes: Axes,
-        fig_event_man: FigureEventManager,
-        cbplot: ColorbarPlot,
-        zoom_scale: float = 2.0,
-        cmap_delta: float = 0.02,
-    ):
-        """
-        Args:
-            axes: Axes to which this manager is attached.
-            fig_event_man: The figure event manage for the figure to
-               which :code:`axes` belong.
-            cbplot: A plot state of type :class:`ColorbarPlot`.
-            zoom_scale: Scaling factor for mouse wheel zoom.
-            cmap_delta: Fraction of colormap range for vmin/vmax shifts.
-        """
-        super().__init__(axes, fig_event_man, cbplot, zoom_scale=zoom_scale)
-        self.cmap_delta = cmap_delta
-
-    def scroll_event_handler(self, event: Event):
-        """Calback for mouse scroll events."""
-        assert hasattr(event, "inaxes")
-        if event.inaxes == self.plot.cbar_axes:  # cmap range change
-            rel_pos = self.cbar_event_rel_pos(event)
-            if self.fig_event_man.cmap_share_axes:
-                for csax in self.fig_event_man.cmap_share_axes:
-                    axevman = self.fig_event_man.get_axevman_for_axes(csax)
-                    axevman.cmap_vminmax_event_handler(event, rel_pos)
-            else:
-                self.cmap_vminmax_event_handler(event, rel_pos)
-        else:
-            super().scroll_event_handler(event)
-
-    def cbar_event_rel_pos(self, event: Event):
-        """Determine relative position of event in a colorbar."""
-        assert hasattr(event, "inaxes") and hasattr(event, "x") and hasattr(event, "y")
-        if self.plot.cbar_axes is None or event.inaxes != self.plot.cbar_axes:
-            return None
-        box = self.plot.cbar_axes.get_window_extent().bounds
-        if (
-            self.plot.cbar_axes._colorbar.orientation  # type: ignore[attr-defined]  # pylint: disable=W0212
-            == "vertical"
-        ):
-            rel_pos = (event.y - box[1]) / box[3]
-        else:
-            rel_pos = (event.x - box[0]) / box[2]
-        return rel_pos
-
-    def cmap_vminmax_event_handler(self, event, rel_pos: float):
-        """Colorbar limits adjust callback."""
-        sign = 1 if event.button == "up" else -1
-        if rel_pos is not None:
-            if rel_pos < 0.5:
-                self.plot.shift_cmap_vmin(sign * self.cmap_delta)
-            elif rel_pos > 0.5:
-                self.plot.shift_cmap_vmax(sign * self.cmap_delta)
+    fig = axes.get_figure()
+    if not isinstance(fig, Figure):
+        return None
+    fem = FigureEventManager.attached_manager(fig)
+    return None if fem is None else fem.plot_for_axes(axes)

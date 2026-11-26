@@ -20,27 +20,20 @@ from conftest import (
 )
 
 import komplot as kplt
-from komplot import (
-    AxesEventManager,
-    ColorbarEventManager,
-    FigureEventManager,
-    ImageViewEventManager,
-    VolumeViewEventManager,
-    ZoomEventManager,
-    figure_event_manager,
-)
+from komplot import FigureEventManager, figure_event_manager
+from komplot._event import attach_figure_event_manager
 
 
 @pytest.fixture
 def line_plot():
-    """A line plot with attached event managers."""
+    """A line plot with an attached event manager."""
     x = np.linspace(0.0, 10.0, 32)
     return kplt.plot(x, x**2)
 
 
 @pytest.fixture
 def image_view(image):
-    """An image view with a visible colorbar and attached event managers."""
+    """An image view with a visible colorbar."""
     return kplt.imview(image, show_cbar=True)
 
 
@@ -52,7 +45,7 @@ def wide_image_view(wide_image):
 
 @pytest.fixture
 def volume_view(volume):
-    """A volume view with a visible colorbar and attached event managers."""
+    """A volume view with a visible colorbar."""
     return kplt.volview(volume, show_cbar=True)
 
 
@@ -86,6 +79,17 @@ class TestFigureEventManager:
             FigureEventManager.attached_manager(fig, error=True)
         with pytest.raises(RuntimeError, match="no attached FigureEventManager"):
             figure_event_manager(fig)
+
+    def test_attach_figure_event_manager(self):
+        """A manager should be created only if the figure has none."""
+        fig = plt.figure()
+        fem = attach_figure_event_manager(fig)
+        assert figure_event_manager(fig) is fem
+        assert attach_figure_event_manager(fig) is fem
+
+    def test_scroll_capture_enabled(self, line_plot):
+        """Scroll capture should be enabled for the canvas."""
+        assert line_plot.figure.canvas.capture_scroll
 
     def test_initial_key_state(self, line_plot):
         """No monitored key should initially be recorded as pressed."""
@@ -140,122 +144,119 @@ class TestFigureEventManager:
         press_key(fig, "pageup")
         np.testing.assert_allclose(fig.get_size_inches(), 2.0 * size)
 
-    def test_axes_manager_registry(self, line_plot):
-        """Axes event managers should be retrievable by axes."""
-        fem = figure_event_manager(line_plot.figure)
-        axem = fem.get_axevman_for_axes(line_plot.axes)
-        assert isinstance(axem, ZoomEventManager)
-        assert fem.axevman_from_ax[line_plot.axes] is axem
 
-    def test_axes_manager_registry_absent(self, line_plot):
-        """An unregistered axes should have no axes event manager."""
+class TestPlotRegistry:
+    """Tests for the record of plots attached to a figure."""
+
+    def test_initial_plot_record(self):
+        """A new manager should have no registered plots."""
+        fem = FigureEventManager(plt.figure())
+        assert fem.plots == []
+
+    def test_plot_registration(self, image):
+        """Plots should be registered in order of construction."""
+        fig, ax = plt.subplots(nrows=1, ncols=2)
+        iview0 = kplt.imview(image, ax=ax[0])
+        iview1 = kplt.imview(image, ax=ax[1])
+        assert figure_event_manager(fig).plots == [iview0, iview1]
+
+    def test_plot_for_axes(self, image):
+        """The plot owning an axes should be retrievable."""
+        fig, ax = plt.subplots(nrows=1, ncols=2)
+        iview0 = kplt.imview(image, ax=ax[0])
+        iview1 = kplt.imview(image, ax=ax[1])
+        fem = figure_event_manager(fig)
+        assert fem.plot_for_axes(ax[0]) is iview0
+        assert fem.plot_for_axes(ax[1]) is iview1
+
+    def test_plot_for_colorbar_axes(self, image_view):
+        """A colorbar axes should be owned by its plot."""
+        fem = figure_event_manager(image_view.figure)
+        assert fem.plot_for_axes(image_view.cbar_axes) is image_view
+
+    def test_plot_for_slider_axes(self, volume_view):
+        """A slice slider axes should be owned by its plot."""
+        fem = figure_event_manager(volume_view.figure)
+        assert fem.plot_for_axes(volume_view.slider_axes) is volume_view
+
+    def test_plot_for_axes_absent(self, line_plot):
+        """An axes with no plot should have no owning plot."""
         fem = figure_event_manager(line_plot.figure)
         other_ax = line_plot.figure.add_subplot(2, 1, 2)
-        assert fem.get_axevman_for_axes(other_ax) is None
+        assert fem.plot_for_axes(other_ax) is None
 
-    def test_initial_share_state(self, line_plot):
-        """No axes should initially be shared."""
+    def test_repeated_plot_in_axes(self, line_plot):
+        """The first plot constructed in an axes should own it."""
         fem = figure_event_manager(line_plot.figure)
-        assert fem.slice_share_axes == []
-        assert fem.cmap_share_axes == []
+        other = kplt.plot(np.arange(10), ax=line_plot.axes)
+        assert fem.plots == [line_plot, other]
+        assert fem.plot_for_axes(line_plot.axes) is line_plot
 
-    def test_set_share_list(self):
-        """Shared axes should be settable from a list."""
+    def test_plots_function(self, image):
+        """The plots attached to a figure should be retrievable."""
         fig, ax = plt.subplots(nrows=1, ncols=2)
-        fem = FigureEventManager(fig)
-        fem.set_slice_share(list(ax))
-        fem.set_cmap_share(list(ax))
-        assert fem.slice_share_axes == list(ax)
-        assert fem.cmap_share_axes == list(ax)
+        iviews = [kplt.imview(image, ax=a) for a in ax]
+        assert kplt.plots(fig) == iviews
 
-    def test_set_share_array(self):
-        """Shared axes should be settable from an array of axes."""
-        fig, ax = plt.subplots(nrows=2, ncols=2)
-        fem = FigureEventManager(fig)
-        fem.set_slice_share(ax)
-        fem.set_cmap_share(ax)
-        assert fem.slice_share_axes == ax.ravel().tolist()
-        assert fem.cmap_share_axes == ax.ravel().tolist()
+    def test_plots_function_no_manager(self):
+        """A figure with no event manager should have no plots."""
+        assert kplt.plots(plt.figure()) == []
 
+    def test_plot_for_axes_function(self, volume_view):
+        """The plot owning an axes should be retrievable."""
+        assert kplt.plot_for_axes(volume_view.axes) is volume_view
+        assert kplt.plot_for_axes(volume_view.slider_axes) is volume_view
 
-class TestAxesEventManager:
-    """Tests for class AxesEventManager."""
-
-    def test_attach(self, line_plot):
-        """A constructed manager should attach itself to the axes."""
-        fig = line_plot.figure
-        fem = figure_event_manager(fig)
-        ax = fig.add_subplot(2, 1, 2)
-        axem = AxesEventManager(ax, fem, line_plot)
-        assert axem.axes is ax
-        assert axem.fig_event_man is fem
-        assert axem.plot is line_plot
-        assert fem.get_axevman_for_axes(ax) is axem
-        assert ax._event_manager is axem
-
-    def test_duplicate_attach(self, line_plot):
-        """Attaching a second manager to an axes should raise an exception."""
-        fem = figure_event_manager(line_plot.figure)
-        with pytest.raises(RuntimeError, match="already has an event manager"):
-            AxesEventManager(line_plot.axes, fem, line_plot)
-
-    def test_scroll_capture_enabled(self, line_plot):
-        """Scroll capture should be enabled for the canvas."""
-        assert line_plot.figure.canvas.capture_scroll
+    def test_plot_for_axes_function_no_manager(self):
+        """An axes in a figure with no event manager should have no plot."""
+        _, ax = plt.subplots()
+        assert kplt.plot_for_axes(ax) is None
 
 
-class TestZoomEventManager:
-    """Tests for class ZoomEventManager."""
+class TestScrollDispatch:
+    """Tests for dispatch of mouse scroll events to plots."""
 
-    def test_scroll_zoom_in(self, line_plot):
-        """Scroll up should zoom in about the event location."""
-        xlim_ref = line_plot.axes.get_xlim()
-        scroll_at_data(line_plot.axes, 5.0, 25.0, button="up")
-        xlim = line_plot.axes.get_xlim()
-        assert np.diff(xlim) == pytest.approx(np.diff(xlim_ref) / 2.0)
+    def test_dispatch_to_owning_plot(self, image):
+        """A scroll should be dispatched to the plot owning the axes."""
+        fig, ax = plt.subplots(nrows=1, ncols=2)
+        iview0 = kplt.imview(image, show_cbar=True, ax=ax[0])
+        iview1 = kplt.imview(image, show_cbar=True, ax=ax[1])
+        scroll_in_axes(iview1.cbar_axes, 0.5, 0.25, button="up")
+        assert iview1.axesimage.norm.vmin > iview1.vmin_ref
+        assert iview0.axesimage.norm.vmin == iview0.vmin_ref
 
-    def test_scroll_zoom_out(self, line_plot):
-        """Scroll down should zoom out towards the reference limits."""
-        xlim_ref = line_plot.axes.get_xlim()
-        scroll_at_data(line_plot.axes, 5.0, 25.0, button="up")
-        scroll_at_data(line_plot.axes, 5.0, 25.0, button="down")
-        assert line_plot.axes.get_xlim() == pytest.approx(xlim_ref)
-
-    def test_zoom_scale(self, line_plot):
-        """The zoom scaling factor should be as specified."""
-        fig = line_plot.figure
-        fem = figure_event_manager(fig)
-        ax = fig.add_subplot(2, 1, 2)
-        ax.set_xlim(0.0, 10.0)
-        ax.set_ylim(0.0, 10.0)
-        zplot = kplt.ZoomablePlot(figure=fig, axes=ax)
-        ZoomEventManager(ax, fem, zplot, zoom_scale=4.0)
-        scroll_at_data(ax, 5.0, 5.0, button="up")
-        assert np.diff(ax.get_xlim()) == pytest.approx(2.5)
-
-    def test_scroll_outside_axes(self, line_plot):
-        """A scroll outside the axes should not zoom."""
+    def test_dispatch_outside_axes(self, line_plot):
+        """A scroll outside any axes should be discarded."""
         xlim_ref = line_plot.axes.get_xlim()
         scroll_outside_axes(line_plot.figure, button="up")
         assert line_plot.axes.get_xlim() == pytest.approx(xlim_ref)
 
+    def test_dispatch_in_axes_without_plot(self, line_plot):
+        """A scroll in an axes with no plot should be discarded."""
+        xlim_ref = line_plot.axes.get_xlim()
+        other_ax = line_plot.figure.add_subplot(2, 1, 2)
+        scroll_in_axes(other_ax, button="up")
+        assert line_plot.axes.get_xlim() == pytest.approx(xlim_ref)
+
+    def test_zoom_scroll(self, line_plot):
+        """Scroll in a line plot should zoom in about the event location."""
+        xlim_ref = line_plot.axes.get_xlim()
+        scroll_at_data(line_plot.axes, 5.0, 25.0, button="up")
+        assert np.diff(line_plot.axes.get_xlim()) == pytest.approx(
+            np.diff(xlim_ref) / 2.0
+        )
+        scroll_at_data(line_plot.axes, 5.0, 25.0, button="down")
+        assert line_plot.axes.get_xlim() == pytest.approx(xlim_ref)
+
     @pytest.mark.parametrize("key", FigureEventManager.monitored_keys)
-    def test_scroll_with_modifier_key(self, line_plot, key):
+    def test_zoom_scroll_with_modifier_key(self, line_plot, key):
         """A scroll with a modifier key depressed should not zoom."""
         xlim_ref = line_plot.axes.get_xlim()
         press_key(line_plot.figure, key)
         scroll_at_data(line_plot.axes, 5.0, 25.0, button="up")
         assert line_plot.axes.get_xlim() == pytest.approx(xlim_ref)
 
-    def test_scroll_in_other_axes(self, line_plot):
-        """A scroll in another axes should not zoom this one."""
-        fig = line_plot.figure
-        xlim_ref = line_plot.axes.get_xlim()
-        other_ax = fig.add_subplot(2, 1, 2)
-        scroll_in_axes(other_ax, button="up")
-        assert line_plot.axes.get_xlim() == pytest.approx(xlim_ref)
-
-    def test_axis_limit_change_message(self, image, recording_toolbar):
+    def test_zoom_toolbar_message(self, recording_toolbar):
         """An axis limit change should generate a toolbar message."""
         fig, ax = plt.subplots()
         fig.canvas.toolbar = recording_toolbar
@@ -263,18 +264,7 @@ class TestZoomEventManager:
         lplot.axes.set_xlim(2.0, 4.0)
         assert recording_toolbar.messages[-1].startswith("Zoom to")
 
-
-class TestColorbarEventManager:
-    """Tests for class ColorbarEventManager."""
-
-    def test_manager_type(self, image_view):
-        """An image view should have a colorbar event manager."""
-        fem = figure_event_manager(image_view.figure)
-        assert isinstance(
-            fem.get_axevman_for_axes(image_view.axes), ColorbarEventManager
-        )
-
-    def test_scroll_vertical_colorbar_lower(self, image_view):
+    def test_colorbar_scroll_lower(self, image_view):
         """Scroll in the lower half of a vertical colorbar should set vmin."""
         vmin_ref, vmax_ref = image_view.vmin_ref, image_view.vmax_ref
         scroll_in_axes(image_view.cbar_axes, 0.5, 0.25, button="up")
@@ -283,7 +273,7 @@ class TestColorbarEventManager:
         )
         assert image_view.axesimage.norm.vmax == vmax_ref
 
-    def test_scroll_vertical_colorbar_upper(self, image_view):
+    def test_colorbar_scroll_upper(self, image_view):
         """Scroll in the upper half of a vertical colorbar should set vmax."""
         vmin_ref, vmax_ref = image_view.vmin_ref, image_view.vmax_ref
         scroll_in_axes(image_view.cbar_axes, 0.5, 0.75, button="down")
@@ -292,30 +282,42 @@ class TestColorbarEventManager:
         )
         assert image_view.axesimage.norm.vmin == vmin_ref
 
-    def test_scroll_horizontal_colorbar_lower(self, wide_image_view):
+    def test_horizontal_colorbar_scroll_lower(self, wide_image_view):
         """Scroll in the left half of a horizontal colorbar should set vmin."""
         iview = wide_image_view
-        assert iview.cbar_axes._colorbar.orientation == "horizontal"
+        assert iview.cbar_orient == "horizontal"
         scroll_in_axes(iview.cbar_axes, 0.25, 0.5, button="up")
         assert iview.axesimage.norm.vmin > iview.vmin_ref
         assert iview.axesimage.norm.vmax == iview.vmax_ref
 
-    def test_scroll_horizontal_colorbar_upper(self, wide_image_view):
+    def test_horizontal_colorbar_scroll_upper(self, wide_image_view):
         """Scroll in the right half of a horizontal colorbar should set vmax."""
         iview = wide_image_view
         scroll_in_axes(iview.cbar_axes, 0.75, 0.5, button="down")
         assert iview.axesimage.norm.vmax < iview.vmax_ref
         assert iview.axesimage.norm.vmin == iview.vmin_ref
 
-    @pytest.mark.parametrize("rel_pos", [0.5, None])
-    def test_colorbar_centre_or_invalid_position(self, image_view, rel_pos):
-        """The colormap limits should be unchanged at the colorbar centre."""
-        fem = figure_event_manager(image_view.figure)
-        axem = fem.get_axevman_for_axes(image_view.axes)
-        event = type("Event", (), {"button": "up"})()
-        axem.cmap_vminmax_event_handler(event, rel_pos)
+    @pytest.mark.parametrize("button", ["left", "right"])
+    def test_colorbar_scroll_other_button(self, image_view, button):
+        """A colorbar event for another button should not change the limits."""
+        scroll_in_axes(image_view.cbar_axes, 0.5, 0.25, button=button)
         assert image_view.axesimage.norm.vmin == image_view.vmin_ref
         assert image_view.axesimage.norm.vmax == image_view.vmax_ref
+
+    def test_colorbar_centre_scroll(self, image_view, monkeypatch):
+        """A scroll at the exact centre of the colorbar should change nothing."""
+        monkeypatch.setattr(
+            type(image_view), "_cbar_event_rel_pos", lambda self, event: 0.5
+        )
+        event = type("Event", (), {"button": "up"})()
+        assert image_view._scroll_cmap_handler(event)
+        assert image_view.axesimage.norm.vmin == image_view.vmin_ref
+        assert image_view.axesimage.norm.vmax == image_view.vmax_ref
+
+    def test_scroll_outside_colorbar_not_claimed(self, image_view):
+        """A scroll outside the colorbar should not be claimed as a shift."""
+        event = type("Event", (), {"inaxes": None, "x": 0, "y": 0, "button": "up"})()
+        assert not image_view._scroll_cmap_handler(event)
 
     def test_scroll_in_image_zooms(self, image_view):
         """Scroll in the image should zoom rather than change the limits."""
@@ -326,63 +328,18 @@ class TestColorbarEventManager:
 
     def test_relative_position_outside_colorbar(self, image_view):
         """The relative position should be None for a non-colorbar event."""
-        fem = figure_event_manager(image_view.figure)
-        axem = fem.get_axevman_for_axes(image_view.axes)
         event = type("Event", (), {"inaxes": image_view.axes, "x": 0, "y": 0})()
-        assert axem.cbar_event_rel_pos(event) is None
+        assert image_view._cbar_event_rel_pos(event) is None
 
     def test_relative_position_no_colorbar(self, image):
         """The relative position should be None when there is no colorbar."""
         iview = kplt.imview(image)
-        fem = figure_event_manager(iview.figure)
-        axem = fem.get_axevman_for_axes(iview.axes)
-        event = type("Event", (), {"inaxes": None, "x": 0, "y": 0})()
-        assert axem.cbar_event_rel_pos(event) is None
-
-    def test_cmap_share(self, image):
-        """Shared colormap axes should all respond to a colorbar scroll."""
-        fig, ax = plt.subplots(nrows=1, ncols=2)
-        iview0 = kplt.imview(image, show_cbar=True, ax=ax[0])
-        iview1 = kplt.imview(2.0 * image, show_cbar=True, ax=ax[1])
-        figure_event_manager(fig).set_cmap_share(ax)
-        scroll_in_axes(iview0.cbar_axes, 0.5, 0.25, button="up")
-        for iview in (iview0, iview1):
-            assert iview.axesimage.norm.vmin == pytest.approx(
-                iview.vmin_ref + 0.02 * (iview.vmax_ref - iview.vmin_ref)
-            )
-
-    @pytest.mark.parametrize(
-        "manager_class,plot_name",
-        [
-            (ColorbarEventManager, "image_view"),
-            (ImageViewEventManager, "image_view"),
-            (VolumeViewEventManager, "volume_view"),
-        ],
-    )
-    def test_cmap_delta(self, request, manager_class, plot_name):
-        """The colormap shift fraction should be as specified."""
-        plot = request.getfixturevalue(plot_name)
-        fem = figure_event_manager(plot.figure)
-        ax = plot.figure.add_subplot(2, 1, 2)
-        axem = manager_class(ax, fem, plot, cmap_delta=0.1)
-        assert axem.cmap_delta == 0.1
+        event = type("Event", (), {"inaxes": iview.axes, "x": 0, "y": 0})()
+        assert iview._cbar_event_rel_pos(event) is None
 
     def test_cmap_delta_default(self, image_view):
         """The default colormap shift fraction should be 0.02."""
-        fem = figure_event_manager(image_view.figure)
-        axem = fem.get_axevman_for_axes(image_view.axes)
-        assert axem.cmap_delta == 0.02
-
-
-class TestVolumeViewEventManager:
-    """Tests for class VolumeViewEventManager."""
-
-    def test_manager_type(self, volume_view):
-        """A volume view should have a volume view event manager."""
-        fem = figure_event_manager(volume_view.figure)
-        assert isinstance(
-            fem.get_axevman_for_axes(volume_view.axes), VolumeViewEventManager
-        )
+        assert image_view.cmap_delta == 0.02
 
     def test_shift_scroll_increment_slice(self, volume_view, volume):
         """Scroll up with shift depressed should increment the slice index."""
@@ -394,14 +351,14 @@ class TestVolumeViewEventManager:
 
     def test_shift_scroll_decrement_slice(self, volume_view):
         """Scroll down with shift depressed should decrement the slice index."""
-        volume_view.set_volume_slice(3)
+        volume_view.slice_index = 3
         press_key(volume_view.figure, "shift")
         scroll_in_axes(volume_view.axes, 0.5, 0.5, button="down")
         assert volume_view.slice_index == 2
 
     def test_shift_scroll_clipped_at_final_slice(self, volume_view, volume):
         """The slice index should not be incremented past the final slice."""
-        volume_view.set_volume_slice(volume.shape[0] - 1)
+        volume_view.slice_index = volume.shape[0] - 1
         press_key(volume_view.figure, "shift")
         scroll_in_axes(volume_view.axes, 0.5, 0.5, button="up")
         assert volume_view.slice_index == volume.shape[0] - 1
@@ -412,6 +369,13 @@ class TestVolumeViewEventManager:
         scroll_in_axes(volume_view.axes, 0.5, 0.5, button="down")
         assert volume_view.slice_index == 0
 
+    @pytest.mark.parametrize("button", ["left", "right"])
+    def test_shift_scroll_other_button(self, volume_view, button):
+        """A shift scroll for another button should not change the slice."""
+        press_key(volume_view.figure, "shift")
+        scroll_in_axes(volume_view.axes, 0.5, 0.5, button=button)
+        assert volume_view.slice_index == 0
+
     def test_scroll_without_shift_zooms(self, volume_view):
         """Scroll without shift depressed should zoom."""
         xlim_ref = volume_view.axes.get_xlim()
@@ -419,35 +383,7 @@ class TestVolumeViewEventManager:
         assert volume_view.slice_index == 0
         assert np.diff(volume_view.axes.get_xlim()) < np.diff(xlim_ref)
 
-    def test_slider_change(self, volume_view, volume):
-        """A slider change should change the displayed slice."""
-        volume_view.slider.set_val(2)
-        assert volume_view.slice_index == 2
-        np.testing.assert_allclose(volume_view.axesimage.get_array(), volume[2])
-
-    def test_colorbar_scroll(self, volume_view):
-        """Colorbar scroll support should be inherited."""
+    def test_volume_colorbar_scroll(self, volume_view):
+        """Colorbar scroll support should be provided for a volume view."""
         scroll_in_axes(volume_view.cbar_axes, 0.5, 0.25, button="up")
         assert volume_view.axesimage.norm.vmin > volume_view.vmin_ref
-
-    def test_slice_share_shift_scroll(self, volume):
-        """Shared slice axes should all respond to a shift scroll."""
-        fig, ax = plt.subplots(nrows=1, ncols=2)
-        vview0 = kplt.volview(volume, ax=ax[0])
-        vview1 = kplt.volview(volume, ax=ax[1])
-        figure_event_manager(fig).set_slice_share(ax)
-        press_key(fig, "shift")
-        scroll_in_axes(vview0.axes, 0.5, 0.5, button="up")
-        assert vview0.slice_index == 1
-        assert vview1.slice_index == 1
-
-    def test_slice_share_slider(self, volume):
-        """A slider change should be propagated to shared slice axes."""
-        fig, ax = plt.subplots(nrows=1, ncols=2)
-        vview0 = kplt.volview(volume, ax=ax[0])
-        vview1 = kplt.volview(volume, ax=ax[1])
-        figure_event_manager(fig).set_slice_share(ax)
-        vview0.slider.set_val(3)
-        assert vview0.slice_index == 3
-        assert vview1.slice_index == 3
-        assert vview1.slider.val == 3

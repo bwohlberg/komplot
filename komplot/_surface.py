@@ -7,7 +7,6 @@
 
 """Surface plot."""
 
-from dataclasses import dataclass
 from typing import Optional, Sequence, Tuple, Union
 
 import matplotlib as mpl
@@ -16,25 +15,106 @@ from matplotlib.axes import Axes
 from matplotlib.colors import Colormap
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection  # type: ignore[import-untyped]
 
-from ._event import FigureEventManager
-from ._state import GenericPlot, figure_and_axes
+from ._state import Plot, figure_and_axes
 
 
-@dataclass(repr=False, kw_only=True)
-class SurfacePlot(GenericPlot):
-    """State of surface plot.
+class SurfacePlot(Plot):
+    """A plot of a 2D surface in 3D.
 
-    Args:
+    A plot of a 2D surface in 3D, together with an optional contour plot
+    in the `x`-`y` plane below the surface. Supports the interactive
+    features provided by :class:`.FigureEventManager`, in addition to the
+    rotation and zoom of a 3D axes provided by matplotlib itself. It is
+    usually constructed via the :func:`surface` function, which is a
+    shortcut for construction of an instance of this class.
+
+    Attributes:
         figure: Plot figure.
         axes: Plot axes.
         poly3dc: Object returned by the call to
            :meth:`~mpl_toolkits.mplot3d.axes3d.Axes3D.plot_surface`.
         qcntset: Object returned by the call to
-           :meth:`~matplotlib.axes.Axes.contour`.
+           :meth:`~matplotlib.axes.Axes.contour`, or ``None`` if no
+           contours were plotted.
     """
 
     poly3dc: Poly3DCollection
     qcntset: Optional[mpl.contour.QuadContourSet]
+
+    def __init__(
+        self,
+        z: np.ndarray,
+        x: Optional[np.ndarray] = None,
+        y: Optional[np.ndarray] = None,
+        *,
+        elev: Optional[float] = None,
+        azim: Optional[float] = None,
+        roll: Optional[float] = None,
+        alpha: float = 1.0,
+        cmap: Optional[Union[Colormap, str]] = None,
+        levels: Optional[Union[int, Sequence[int]]] = None,
+        xlabel: Optional[str] = None,
+        ylabel: Optional[str] = None,
+        zlabel: Optional[str] = None,
+        labelpad: float = 8.0,
+        title: Optional[str] = None,
+        figsize: Optional[Tuple[int, int]] = None,
+        fignum: Optional[int] = None,
+        ax: Optional[Axes] = None,
+    ):
+        """
+        See :func:`surface` for a description of the parameters.
+        """
+        fig, axs, new_fig = figure_and_axes(
+            ax, figsize=figsize, fignum=fignum, proj3d=True
+        )
+        super().__init__(figure=fig, axes=axs, new_figure=new_fig)
+
+        if elev is not None or azim is not None or roll is not None:
+            axs.view_init(elev=elev, azim=azim, roll=roll)  # type: ignore[attr-defined]
+
+        if cmap is None:
+            cmap = mpl.cm.YlOrRd  # type: ignore[attr-defined]  # pylint: disable=E1101
+
+        if x is None:
+            x = np.arange(z.shape[1])
+        if y is None:
+            y = np.arange(z.shape[0])
+        xg, yg = np.meshgrid(x, y)
+        self.poly3dc = axs.plot_surface(  # type: ignore[attr-defined]
+            xg, yg, z, rstride=1, cstride=1, alpha=alpha, cmap=cmap
+        )
+
+        if levels is None:
+            self.qcntset = None
+        else:
+            offset = np.around(z.min() - 0.2 * (z.max() - z.min()), 3)
+            self.qcntset = axs.contour(
+                xg,
+                yg,
+                z,
+                levels,
+                cmap=cmap,
+                linewidths=2,
+                linestyles="solid",
+                offset=offset,
+            )
+            axs.set_zlim(offset, axs.get_zlim()[1])  # type: ignore[attr-defined]
+
+        axs.fmt_xdata = "{: .2f}".format
+        axs.fmt_ydata = "{: .2f}".format
+        axs.fmt_zdata = "{: .2f}".format  # type: ignore[attr-defined]
+
+        if title is not None:
+            axs.set_title(title)
+        if xlabel is not None:
+            axs.set_xlabel(xlabel, labelpad=labelpad)
+        if ylabel is not None:
+            axs.set_ylabel(ylabel, labelpad=labelpad)
+        if zlabel is not None:
+            axs.set_zlabel(zlabel, labelpad=labelpad)  # type: ignore[attr-defined]
+
+        self.show_new_figure()
 
 
 def surface(
@@ -100,58 +180,24 @@ def surface(
         ax: Plot in specified axes instead of creating one.
 
     Returns:
-        Surface plot state object.
+        Surface plot object.
     """
-    fig, ax, show = figure_and_axes(ax, figsize=figsize, fignum=fignum, proj3d=True)
-
-    if elev is not None or azim is not None or roll is not None:
-        ax.view_init(elev=elev, azim=azim, roll=roll)  # type: ignore[attr-defined]
-
-    if cmap is None:
-        cmap = mpl.cm.YlOrRd  # type: ignore[attr-defined]  # pylint: disable=E1101
-
-    if x is None:
-        x = np.arange(z.shape[1])
-    if y is None:
-        y = np.arange(z.shape[0])
-    xg, yg = np.meshgrid(x, y)
-    poly3dc = ax.plot_surface(xg, yg, z, rstride=1, cstride=1, alpha=alpha, cmap=cmap)  # type: ignore[attr-defined]
-
-    if levels is None:
-        qcntset = None
-    else:
-        offset = np.around(z.min() - 0.2 * (z.max() - z.min()), 3)
-        qcntset = ax.contour(
-            xg,
-            yg,
-            z,
-            levels,
-            cmap=cmap,
-            linewidths=2,
-            linestyles="solid",
-            offset=offset,
-        )
-        ax.set_zlim(offset, ax.get_zlim()[1])  # type: ignore[attr-defined]
-
-    ax.fmt_xdata = "{: .2f}".format
-    ax.fmt_ydata = "{: .2f}".format
-    ax.fmt_zdata = "{: .2f}".format  # type: ignore[attr-defined]
-
-    if title is not None:
-        ax.set_title(title)
-    if xlabel is not None:
-        ax.set_xlabel(xlabel, labelpad=labelpad)
-    if ylabel is not None:
-        ax.set_ylabel(ylabel, labelpad=labelpad)
-    if zlabel is not None:
-        ax.set_zlabel(zlabel, labelpad=labelpad)  # type: ignore[attr-defined]
-
-    if show:
-        fig.show()
-
-    surfplot = SurfacePlot(figure=fig, axes=ax, poly3dc=poly3dc, qcntset=qcntset)
-
-    if not hasattr(fig, "_event_manager"):
-        FigureEventManager(fig)  # constructed object attaches itself to fig
-
-    return surfplot
+    return SurfacePlot(
+        z,
+        x,
+        y,
+        elev=elev,
+        azim=azim,
+        roll=roll,
+        alpha=alpha,
+        cmap=cmap,
+        levels=levels,
+        xlabel=xlabel,
+        ylabel=ylabel,
+        zlabel=zlabel,
+        labelpad=labelpad,
+        title=title,
+        figsize=figsize,
+        fignum=fignum,
+        ax=ax,
+    )

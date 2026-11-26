@@ -7,7 +7,6 @@
 
 """Contour plot."""
 
-from dataclasses import dataclass
 from typing import Dict, Optional, Sequence, Tuple, Union
 
 import matplotlib as mpl
@@ -17,19 +16,31 @@ from matplotlib.axes import Axes
 from matplotlib.colors import Colormap
 from mpl_toolkits.axes_grid1 import make_axes_locatable  # type: ignore[import-untyped]
 
-from ._event import ColorbarEventManager, FigureEventManager, figure_event_manager
-from ._state import ColorbarPlot, LogScaleType, figure_and_axes, log_scale_kwargs
+from ._state import (
+    ColorbarMixin,
+    LogScaleType,
+    Plot,
+    ZoomMixin,
+    data_limits,
+    figure_and_axes,
+    log_scale_kwargs,
+)
 
 
-@dataclass(repr=False, kw_only=True)
-class ContourPlot(ColorbarPlot):
-    """State of contour plot.
+class ContourPlot(ColorbarMixin, ZoomMixin, Plot):
+    """A contour plot of a 2D surface.
 
-    Args:
+    A contour plot of a 2D surface, together with a pseudo-color image
+    representation of the surface, supporting the interactive features
+    provided by :class:`.FigureEventManager`, :class:`.ColorbarMixin`,
+    and :class:`.ZoomMixin`. It is usually constructed via the
+    :func:`contour` function, which is a shortcut for construction of an
+    instance of this class.
+
+    Attributes:
         figure: Plot figure.
         axes: Plot axes.
-        axesimage: The :class:`~matplotlib.image.AxesImage` associated with the
-           colorbar.
+        axesimage: The color mesh associated with the colorbar.
         divider: The :class:`~mpl_toolkits.axes_grid1.axes_divider.AxesDivider`
            used to create axes for the colorbar.
         cbar_axes: The axes of the colorbar.
@@ -38,6 +49,99 @@ class ContourPlot(ColorbarPlot):
     """
 
     qcntset: mpl.contour.QuadContourSet
+
+    def __init__(
+        self,
+        z: np.ndarray,
+        x: Optional[np.ndarray] = None,
+        y: Optional[np.ndarray] = None,
+        *,
+        xlog: LogScaleType = False,
+        ylog: LogScaleType = False,
+        levels: Union[int, Sequence[float]] = 5,
+        clabel_inline: bool = True,
+        clabel_format: Optional[str] = None,
+        clabel_fontsize: Optional[int] = 10,
+        cmap: Optional[Union[Colormap, str]] = None,
+        vmin: Optional[float] = None,
+        vmax: Optional[float] = None,
+        alpha: float = 1.0,
+        xlabel: Optional[str] = None,
+        ylabel: Optional[str] = None,
+        xylabel_fontsize: Optional[int] = None,
+        title: Optional[str] = None,
+        figsize: Optional[Tuple[int, int]] = None,
+        fignum: Optional[int] = None,
+        ax: Optional[Axes] = None,
+    ):
+        """
+        See :func:`contour` for a description of the parameters.
+        """
+        fig, axs, new_fig = figure_and_axes(ax, figsize=figsize, fignum=fignum)
+        super().__init__(figure=fig, axes=axs, new_figure=new_fig)
+
+        xlog_kwargs = log_scale_kwargs(xlog)
+        if xlog_kwargs is not None:
+            axs.set_xscale("log", **xlog_kwargs)
+        ylog_kwargs = log_scale_kwargs(ylog)
+        if ylog_kwargs is not None:
+            axs.set_yscale("log", **ylog_kwargs)
+
+        if cmap is None:
+            cmap = mpl.cm.YlOrRd  # type: ignore[attr-defined]  # pylint: disable=E1101
+
+        x = np.arange(z.shape[1]) if x is None else np.array(x)
+        y = np.arange(z.shape[0]) if y is None else np.array(y)
+        xg, yg = np.meshgrid(x, y)
+
+        self.qcntset = axs.contour(xg, yg, z, levels, colors="black")
+        clabel_kwargs: Dict[str, Union[str, int]] = {}
+        if clabel_fontsize is not None and clabel_fontsize > 0:
+            clabel_kwargs["fontsize"] = clabel_fontsize
+        if clabel_format is not None:
+            clabel_kwargs["fmt"] = clabel_format
+        if clabel_kwargs:
+            axs.clabel(self.qcntset, inline=clabel_inline, **clabel_kwargs)
+
+        qmesh = axs.pcolormesh(
+            xg,
+            yg,
+            z,
+            cmap=cmap,
+            vmin=vmin,
+            vmax=vmax,
+            alpha=alpha,
+            shading="gouraud",
+            clim=(vmin, vmax),
+        )
+
+        axs.fmt_xdata = (
+            "{: .2e}".format if xlog_kwargs is not None else "{: .2f}".format
+        )
+        axs.fmt_ydata = (
+            "{: .2e}".format if ylog_kwargs is not None else "{: .2f}".format
+        )
+
+        if title is not None:
+            axs.set_title(title)
+        if xlabel is not None:
+            axs.set_xlabel(xlabel, fontsize=xylabel_fontsize)
+        if ylabel is not None:
+            axs.set_ylabel(ylabel, fontsize=xylabel_fontsize)
+
+        divider = make_axes_locatable(axs)
+        cax = divider.append_axes("right", size="5%", pad=0.2)
+        plt.colorbar(qmesh, ax=axs, cax=cax)
+
+        self.init_colorbar(
+            qmesh,  # type: ignore[arg-type]
+            divider=divider,
+            cbar_axes=cax,
+            cbar_orient="vertical",
+            cmap_data_limits=data_limits(z),
+        )
+        self.init_zoom()
+        self.show_new_figure()
 
 
 def contour(
@@ -72,9 +176,9 @@ def contour(
       figure and axes are created, and
       :meth:`~matplotlib.figure.Figure.show` is called after drawing the
       plot.
-    - Interactive features provided by :class:`FigureEventManager` and
-      :class:`ColorbarEventManager` are supported in addition to the standard
-      `matplotlib <https://matplotlib.org/>`__
+    - Interactive features provided by :class:`FigureEventManager`,
+      :class:`ColorbarMixin`, and :class:`ZoomMixin` are supported in
+      addition to the standard `matplotlib <https://matplotlib.org/>`__
       `interactive features <https://matplotlib.org/stable/users/explain/figure/interactive.html#interactive-navigation>`__.
 
     Args:
@@ -116,76 +220,27 @@ def contour(
         ax: Plot in specified axes instead of creating one.
 
     Returns:
-        Contour plot state object.
+        Contour plot object.
     """
-    fig, ax, show = figure_and_axes(ax, figsize=figsize, fignum=fignum)
-
-    xlog_kwargs = log_scale_kwargs(xlog)
-    if xlog_kwargs is not None:
-        ax.set_xscale("log", **xlog_kwargs)
-    ylog_kwargs = log_scale_kwargs(ylog)
-    if ylog_kwargs is not None:
-        ax.set_yscale("log", **ylog_kwargs)
-
-    if cmap is None:
-        cmap = mpl.cm.YlOrRd  # type: ignore[attr-defined]  # pylint: disable=E1101
-
-    x = np.arange(z.shape[1]) if x is None else np.array(x)
-    y = np.arange(z.shape[0]) if y is None else np.array(y)
-    xg, yg = np.meshgrid(x, y)
-
-    qcntset = ax.contour(xg, yg, z, levels, colors="black")
-    clabel_kwargs: Dict[str, Union[str, int]] = {}
-    if clabel_fontsize is not None and clabel_fontsize > 0:
-        clabel_kwargs["fontsize"] = clabel_fontsize
-    if clabel_format is not None:
-        clabel_kwargs["fmt"] = clabel_format
-    if clabel_kwargs:
-        ax.clabel(qcntset, inline=clabel_inline, **clabel_kwargs)
-
-    qmesh = ax.pcolormesh(
-        xg,
-        yg,
+    return ContourPlot(
         z,
+        x,
+        y,
+        xlog=xlog,
+        ylog=ylog,
+        levels=levels,
+        clabel_inline=clabel_inline,
+        clabel_format=clabel_format,
+        clabel_fontsize=clabel_fontsize,
         cmap=cmap,
         vmin=vmin,
         vmax=vmax,
         alpha=alpha,
-        shading="gouraud",
-        clim=(vmin, vmax),
+        xlabel=xlabel,
+        ylabel=ylabel,
+        xylabel_fontsize=xylabel_fontsize,
+        title=title,
+        figsize=figsize,
+        fignum=fignum,
+        ax=ax,
     )
-
-    ax.fmt_xdata = "{: .2e}".format if xlog_kwargs is not None else "{: .2f}".format
-    ax.fmt_ydata = "{: .2e}".format if ylog_kwargs is not None else "{: .2f}".format
-
-    if title is not None:
-        ax.set_title(title)
-    if xlabel is not None:
-        ax.set_xlabel(xlabel, fontsize=xylabel_fontsize)
-    if ylabel is not None:
-        ax.set_ylabel(ylabel, fontsize=xylabel_fontsize)
-
-    divider = make_axes_locatable(ax)
-    cax = divider.append_axes("right", size="5%", pad=0.2)
-    plt.colorbar(qmesh, ax=ax, cax=cax)
-
-    if show:
-        fig.show()
-
-    cplot = ContourPlot(
-        figure=fig,
-        axes=ax,
-        axesimage=qmesh,  # type: ignore[arg-type]
-        divider=divider,
-        cbar_axes=cax,
-        qcntset=qcntset,
-    )
-
-    if not hasattr(fig, "_event_manager"):
-        fem = FigureEventManager(fig)  # constructed object attaches itself to fig
-    else:
-        fem = figure_event_manager(fig)
-    if not hasattr(ax, "_event_manager"):
-        ColorbarEventManager(ax, fem, cplot)  # constructed object attaches itself to ax
-
-    return cplot

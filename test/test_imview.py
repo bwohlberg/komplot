@@ -12,13 +12,13 @@ from types import SimpleNamespace
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
-from conftest import move_mouse
+from conftest import move_mouse, scroll_in_axes
 from matplotlib.axes import Axes
 from matplotlib.colors import LogNorm
 from mpl_toolkits.axes_grid1.axes_divider import AxesDivider
 
 import komplot as kplt
-from komplot import ImageView, ImageViewEventManager, _imview, figure_event_manager
+from komplot import ImageView, _imview, figure_event_manager
 from komplot._imview import _format_coord
 
 
@@ -213,19 +213,74 @@ class TestImview:
         assert iview.figure is fig
         assert plt.get_fignums() == [fig.number]
 
-    def test_event_managers(self, image):
-        """Figure and axes event managers should be attached."""
+    @pytest.mark.parametrize(
+        "show_cbar,visible", [(True, True), (None, False), (False, False)]
+    )
+    def test_colorbar_visibility(self, image, show_cbar, visible):
+        """Colorbar visibility should be recorded."""
+        iview = kplt.imview(image, show_cbar=show_cbar)
+        assert iview.cbar_visible is visible
+        assert (iview.cbar_axes is not None) == (show_cbar is not False)
+        assert (iview.cbar_orient is None) == (show_cbar is False)
+
+    @pytest.mark.parametrize("show_cbar", [True, None])
+    def test_colorbar_orientation(self, image, wide_image, show_cbar):
+        """Colorbar orientation should be determined by the image shape."""
+        assert kplt.imview(image, show_cbar=show_cbar).cbar_orient == "vertical"
+        assert kplt.imview(wide_image, show_cbar=show_cbar).cbar_orient == "horizontal"
+
+    def test_invisible_colorbar_scroll(self, image):
+        """An invisible colorbar should not respond to a scroll event."""
+        iview = kplt.imview(image, show_cbar=None)
+        scroll_in_axes(iview.cbar_axes, 0.5, 0.25, button="up")
+        scroll_in_axes(iview.cbar_axes, 0.5, 0.75, button="down")
+        assert iview.cmap_limits == (iview.vmin_ref, iview.vmax_ref)
+
+    def test_cmap_adjustment_bounds(self, image):
+        """Colormap adjustment should be bounded by the image range."""
+        iview = kplt.imview(image, show_cbar=True, vmin_quantile=0.1)
+        assert iview.vmin_ref > image.min()
+        assert iview.vmax_ref < image.max()
+        assert (iview.vmin_bound, iview.vmax_bound) == (image.min(), image.max())
+
+    def test_cmap_adjustment_bounds_default(self, image):
+        """The adjustment bounds should be the image range by default."""
+        iview = kplt.imview(image, show_cbar=True)
+        assert (iview.vmin_bound, iview.vmax_bound) == (image.min(), image.max())
+        assert (iview.vmin_bound, iview.vmax_bound) == (
+            iview.vmin_ref,
+            iview.vmax_ref,
+        )
+
+    def test_cmap_adjustment_beyond_initial_limits(self, image):
+        """A colorbar scroll should be able to widen the colormap range."""
+        iview = kplt.imview(image, show_cbar=True, vmin_quantile=0.1)
+        vrange = iview.vmax_ref - iview.vmin_ref
+        scroll_in_axes(iview.cbar_axes, 0.5, 0.25, button="down")
+        assert iview.cmap_limits[0] == pytest.approx(iview.vmin_ref - 0.02 * vrange)
+        span = iview.cmap_limits[1] - iview.cmap_limits[0]
+        scroll_in_axes(iview.cbar_axes, 0.5, 0.75, button="up")
+        assert iview.cmap_limits[1] == pytest.approx(iview.vmax_ref + 0.02 * span)
+
+    def test_event_manager(self, image):
+        """The plot should be registered with the figure event manager."""
         iview = kplt.imview(image)
         fem = figure_event_manager(iview.figure)
-        axem = fem.get_axevman_for_axes(iview.axes)
-        assert isinstance(axem, ImageViewEventManager)
-        assert axem.plot is iview
+        assert iview.event_manager is fem
+        assert fem.plot_for_axes(iview.axes) is iview
 
-    def test_event_managers_shared_figure(self, image):
-        """A single figure event manager should serve multiple axes."""
+    def test_event_manager_shared_figure(self, image):
+        """A single figure event manager should serve multiple plots."""
         _, ax = plt.subplots(nrows=1, ncols=2)
         iview0 = kplt.imview(image, ax=ax[0])
         iview1 = kplt.imview(image, ax=ax[1])
         fem = figure_event_manager(iview0.figure)
         assert fem is figure_event_manager(iview1.figure)
-        assert fem.get_axevman_for_axes(ax[1]).plot is iview1
+        assert fem.plots == [iview0, iview1]
+
+    def test_feature_support(self, image):
+        """The plot should support colormap range adjustment and zoom."""
+        iview = kplt.imview(image)
+        assert isinstance(iview, (kplt.ColorbarMixin, kplt.ZoomMixin))
+        assert iview.vmin_ref == iview.axesimage.norm.vmin
+        assert iview.xlim_ref == iview.axes.get_xlim()

@@ -97,7 +97,7 @@ Viewer for slices of 3D volumes
     vol = imread("imageio:stent.npz")
     iv = kplt.volview(vol.transpose((1, 2, 0)), slice_axis=0, vmin_quantile=1e-2, cmap="viridis",
 		      show_cbar=True)
-    iv.set_volume_slice(110)
+    iv.slice_index = 110
 
 
 Function :func:`~komplot.volview` provides a viewer for slices of 3D volumes. A `usage example <https://github.com/bwohlberg/komplot/blob/main/examples/volview.py>`__ is available.
@@ -123,12 +123,12 @@ It also provides interactive adjustment/navigation support in addition to the st
 | in main figure         | cursor location.               | :func:`~komplot.surface`   |
 +------------------------+--------------------------------+----------------------------+
 | **Mouse wheel scroll** | Increase or decrease colormap  | All plots with a           |
-| in bottom half of      | :code:`vmin`.                  | visible colorbar           |
-| colorbar               |                                |                            |
+| in bottom half of      | :code:`vmin`, within the range | visible colorbar           |
+| colorbar               | of the displayed data.         |                            |
 +------------------------+--------------------------------+----------------------------+
 | **Mouse wheel scroll** | Increase or decrease colormap  | All plots with a           |
-| in top half of         | :code:`vmax`.                  | visible colorbar           |
-| colorbar               |                                |                            |
+| in top half of         | :code:`vmax`, within the range | visible colorbar           |
+| colorbar               | of the displayed data.         |                            |
 +------------------------+--------------------------------+----------------------------+
 | **Mouse wheel scroll** | Increase or decrease slice     | A :func:`~komplot.volview` |
 | in main figure with    | index.                         | plot of a 3D volume.       |
@@ -140,6 +140,46 @@ It also provides interactive adjustment/navigation support in addition to the st
 
 
 Note that none of the keyboard shortcuts (including detection of the shift key while the mouse wheel is scrolled) are functional within Jupyter notebooks with the `ipympl <https://matplotlib.org/ipympl/>`__ matplotlib backend.
+
+
+Plot Objects
+============
+
+Each of the plotting functions returns a plot object that provides access to the plot components and to the state of its interactive features. For example, the volume slice displayed by a :func:`~komplot.volview` plot is determined by the :attr:`~komplot.SliceMixin.slice_index` property of the returned object
+
+.. code-block:: python
+
+    iv = kplt.volview(vol)
+    iv.slice_index = 100
+
+and the colormap range of a plot with a colorbar may be adjusted via the
+:meth:`~komplot.ColorbarMixin.shift_cmap_vmin` and :meth:`~komplot.ColorbarMixin.shift_cmap_vmax` methods. Each shift, whether by mouse wheel scroll in the colorbar or by a call to one of those methods, is a fraction :attr:`~komplot.ColorbarMixin.cmap_delta` of the *current* colormap range, so that the number of shifts required to traverse a range is independent of its size, and is bounded by :attr:`~komplot.ColorbarMixin.vmin_bound` and :attr:`~komplot.ColorbarMixin.vmax_bound`, which default to the range of the displayed data. An initial colormap range narrower than the data, such as that specified by the :code:`vmin_quantile` parameter of :func:`~komplot.imview`, may therefore be widened to include all of the data, and either bound may be changed by assignment if some other limit is wanted. Narrowing of the range is limited to :attr:`~komplot.ColorbarMixin.cmap_span_min`, since a colormap range of zero is not reliably representable. The plot object corresponding to an axes may be retrieved via :func:`~komplot.plot_for_axes`, and all the plot objects of a figure via :func:`~komplot.plots`.
+
+
+Sharing plot properties
+^^^^^^^^^^^^^^^^^^^^^^^
+
+The colormap range and the volume slice index may be shared between any number of plots, in the same figure or in different figures, so that a change applied to one of them, whether interactively or programmatically, is applied to all of them
+
+.. code-block:: python
+
+    fig, ax = kplt.subplots(nrows=1, ncols=2)
+    iv0 = kplt.volview(vol, slice_axis=1, show_cbar=True, ax=ax[0])
+    iv1 = kplt.volview(vol, slice_axis=2, show_cbar=True, ax=ax[1])
+    kplt.share_slice([iv0, iv1])
+    kplt.share_cmap([iv0, iv1])
+
+Each call to :func:`~komplot.share_slice` or :func:`~komplot.share_cmap` defines a complete share group, which is returned by the call: a plot that belonged to another group for the same property leaves it, and a group left with fewer than two members is dissolved. Plots may be removed from their groups via :func:`~komplot.unshare_slice` and :func:`~komplot.unshare_cmap`, which accept either plots or a share group. Since the colormap range is shared as a relative shift, plots in a colormap share group are not required to have the same colormap range, but all plots in a slice share group are required to have the same number of slices.
+
+
+.. This section documents the API deprecated in version 0.0.5, and is to be
+   deleted when that API is removed, which is step 4 of the list in the
+   docstring of komplot/_deprecated.py.
+
+Deprecated API
+==============
+
+The restructuring of the plot classes and of the property sharing API in version 0.0.5 replaced a number of public names, which remain usable until version 0.0.7. Each use of one of them emits a :class:`DeprecationWarning` and is translated into the corresponding part of the current API: the plot state classes :code:`GenericPlot`, :code:`ZoomablePlot` and :code:`ColorbarPlot`, and the event manager classes :code:`AxesEventManager`, :code:`ZoomEventManager`, :code:`ColorbarEventManager`, :code:`ImageViewEventManager` and :code:`VolumeViewEventManager`, resolve to :class:`~komplot.Plot` and to the feature mixin classes that replace them, and methods :code:`set_cmap_share`, :code:`set_slice_share` and :code:`get_axevman_for_axes` of :class:`~komplot.FigureEventManager` are applied via :func:`~komplot.share_cmap`, :func:`~komplot.share_slice` and :func:`~komplot.plot_for_axes` respectively. Since the sharing functions act on plots rather than on axes, the deprecated sharing methods require that the plots that are to share the property have been created. The event handler methods of the removed event manager classes, and attributes :code:`cmap_share_axes` and :code:`slice_share_axes` of :class:`~komplot.FigureEventManager`, are not supported.
 
 
 Usage Examples

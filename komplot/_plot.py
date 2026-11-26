@@ -7,14 +7,12 @@
 
 """Point/line plotting."""
 
-from dataclasses import dataclass
 from typing import List, Literal, Optional, Sequence, Tuple, Union
 
 import matplotlib as mpl
 from matplotlib.axes import Axes
 
-from ._event import FigureEventManager, ZoomEventManager, figure_event_manager
-from ._state import LogScaleType, ZoomablePlot, figure_and_axes, log_scale_kwargs
+from ._state import LogScaleType, Plot, ZoomMixin, figure_and_axes, log_scale_kwargs
 
 try:
     import mplcursors as mplcrs  # type: ignore[import-not-found]
@@ -22,20 +20,6 @@ except ImportError:
     HAVE_MPLCRS = False
 else:
     HAVE_MPLCRS = True
-
-
-@dataclass(repr=False, kw_only=True)
-class LinePlot(ZoomablePlot):
-    """State of 2d line/point plot.
-
-    Args:
-        figure: Plot figure.
-        axes: Plot axes.
-        line2d: Object returned by call to
-           :meth:`~matplotlib.axes.Axes.plot`.
-    """
-
-    line2d: List[mpl.lines.Line2D]
 
 
 LegendLocType = Union[
@@ -56,6 +40,78 @@ LegendLocType = Union[
     Tuple[float, float],
     None,
 ]
+
+
+class LinePlot(ZoomMixin, Plot):
+    """A 2d line/point plot.
+
+    A 2d line/point plot, supporting the interactive features provided by
+    :class:`.FigureEventManager` and :class:`.ZoomMixin`. It is usually
+    constructed via the :func:`plot` function, which is a shortcut for
+    construction of an instance of this class.
+
+    Attributes:
+        figure: Plot figure.
+        axes: Plot axes.
+        line2d: Object returned by call to
+           :meth:`~matplotlib.axes.Axes.plot`.
+    """
+
+    line2d: List[mpl.lines.Line2D]
+
+    def __init__(
+        self,
+        *args,
+        xlog: LogScaleType = False,
+        ylog: LogScaleType = False,
+        xlabel: Optional[str] = None,
+        ylabel: Optional[str] = None,
+        title: Optional[str] = None,
+        legend: Optional[Sequence[str]] = None,
+        legend_loc: LegendLocType = None,
+        figsize: Optional[Tuple[int, int]] = None,
+        fignum: Optional[int] = None,
+        ax: Optional[Axes] = None,
+        **kwargs,
+    ):
+        """
+        See :func:`plot` for a description of the parameters.
+        """
+        fig, axs, new_fig = figure_and_axes(ax, figsize=figsize, fignum=fignum)
+        super().__init__(figure=fig, axes=axs, new_figure=new_fig)
+
+        # Set defaults for line width and marker size
+        if "lw" not in kwargs and "linewidth" not in kwargs:
+            kwargs["lw"] = 1.5
+        if "ms" not in kwargs and "markersize" not in kwargs:
+            kwargs["ms"] = 6.0
+
+        xlog_kwargs = log_scale_kwargs(xlog)
+        if xlog_kwargs is not None:
+            axs.set_xscale("log", **xlog_kwargs)
+        ylog_kwargs = log_scale_kwargs(ylog)
+        if ylog_kwargs is not None:
+            axs.set_yscale("log", **ylog_kwargs)
+
+        self.line2d = axs.plot(*args, **kwargs)
+
+        axs.fmt_xdata = "{: .2f}".format
+        axs.fmt_ydata = "{: .2f}".format
+
+        if title is not None:
+            axs.set_title(title)
+        if xlabel is not None:
+            axs.set_xlabel(xlabel)
+        if ylabel is not None:
+            axs.set_ylabel(ylabel)
+        if legend is not None:
+            axs.legend(legend, loc=legend_loc)
+
+        if HAVE_MPLCRS:
+            mplcrs.cursor(self.line2d)
+
+        self.init_zoom()
+        self.show_new_figure()
 
 
 def plot(
@@ -82,7 +138,7 @@ def plot(
       :meth:`~matplotlib.figure.Figure.show` is called after drawing the
       plot.
     - Interactive features provided by :class:`FigureEventManager` and
-      :class:`ZoomEventManager` are supported in addition to the standard
+      :class:`ZoomMixin` are supported in addition to the standard
       `matplotlib <https://matplotlib.org/>`__
       `interactive features <https://matplotlib.org/stable/users/explain/figure/interactive.html#interactive-navigation>`__.
 
@@ -117,50 +173,19 @@ def plot(
             and marker size (:code:`ms`) are 1.5 and 6.0 respectively).
 
     Returns:
-        Line/point plot state object.
+        Line/point plot object.
     """
-    fig, ax, show = figure_and_axes(ax, figsize=figsize, fignum=fignum)
-
-    # Set defaults for line width and marker size
-    if "lw" not in kwargs and "linewidth" not in kwargs:
-        kwargs["lw"] = 1.5
-    if "ms" not in kwargs and "markersize" not in kwargs:
-        kwargs["ms"] = 6.0
-
-    xlog_kwargs = log_scale_kwargs(xlog)
-    if xlog_kwargs is not None:
-        ax.set_xscale("log", **xlog_kwargs)
-    ylog_kwargs = log_scale_kwargs(ylog)
-    if ylog_kwargs is not None:
-        ax.set_yscale("log", **ylog_kwargs)
-
-    line2d = ax.plot(*args, **kwargs)
-
-    ax.fmt_xdata = "{: .2f}".format
-    ax.fmt_ydata = "{: .2f}".format
-
-    if title is not None:
-        ax.set_title(title)
-    if xlabel is not None:
-        ax.set_xlabel(xlabel)
-    if ylabel is not None:
-        ax.set_ylabel(ylabel)
-    if legend is not None:
-        ax.legend(legend, loc=legend_loc)
-
-    if HAVE_MPLCRS:
-        mplcrs.cursor(line2d)
-
-    if show:
-        fig.show()
-
-    lineplot = LinePlot(figure=fig, axes=ax, line2d=line2d)
-
-    if not hasattr(fig, "_event_manager"):
-        fem = FigureEventManager(fig)  # constructed object attaches itself to fig
-    else:
-        fem = figure_event_manager(fig)
-    if not hasattr(ax, "_event_manager"):
-        ZoomEventManager(ax, fem, lineplot)  # constructed object attaches itself to ax
-
-    return lineplot
+    return LinePlot(
+        *args,
+        xlog=xlog,
+        ylog=ylog,
+        xlabel=xlabel,
+        ylabel=ylabel,
+        title=title,
+        legend=legend,
+        legend_loc=legend_loc,
+        figsize=figsize,
+        fignum=fignum,
+        ax=ax,
+        **kwargs,
+    )

@@ -7,8 +7,7 @@
 
 """Image viewer."""
 
-from dataclasses import dataclass
-from typing import Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -21,8 +20,7 @@ from mpl_toolkits.axes_grid1.axes_divider import (
     AxesDivider,  # type: ignore[import-untyped]
 )
 
-from ._event import ColorbarEventManager, FigureEventManager, figure_event_manager
-from ._state import ColorbarPlot, figure_and_axes
+from ._state import ColorbarMixin, Plot, ZoomMixin, data_limits, figure_and_axes
 
 try:
     import mplcursors as mplcrs  # type: ignore[import-not-found]
@@ -30,65 +28,6 @@ except ImportError:
     HAVE_MPLCRS = False
 else:
     HAVE_MPLCRS = True
-
-
-@dataclass(repr=False, kw_only=True)
-class ImageView(ColorbarPlot):
-    """State of imview plot.
-
-    Args:
-        figure: Plot figure.
-        axes: Plot axes.
-        axesimage: The :class:`~matplotlib.image.AxesImage` associated
-           with the colorbar.
-        divider: The :class:`~mpl_toolkits.axes_grid1.axes_divider.AxesDivider`
-           used to create axes for the colorbar.
-        cbar_axes: The axes of the colorbar.
-    """
-
-
-class ImageViewEventManager(ColorbarEventManager):
-    """Manager for axes-based events.
-
-    Manage mouse scroll and slider widget events. The following
-    interactive features are supported:
-
-    *Mouse wheel scroll*
-       Zoom in or out at current cursor location.
-
-    *Mouse wheel scroll in bottom half of colorbar*
-       Increase or decrease colormap :code:`vmin`.
-
-    *Mouse wheel scroll in top half of colorbar*
-       Increase or decrease colormap :code:`vmax`.
-    """
-
-    plot: ImageView
-
-    def __init__(
-        self,
-        axes: Axes,
-        fig_event_man: FigureEventManager,
-        iview: ImageView,
-        zoom_scale: float = 2.0,
-        cmap_delta: float = 0.02,
-    ):
-        """
-        Args:
-            axes: Axes to which this manager is attached.
-            fig_event_man: The figure event manage for the figure to
-               which :code:`axes` belong.
-            iview: A plot state of type :class:`ImageView`.
-            zoom_scale: Scaling factor for mouse wheel zoom.
-            cmap_delta: Fraction of colormap range for vmin/vmax shifts.
-        """
-        super().__init__(
-            axes,
-            fig_event_man,
-            iview,
-            zoom_scale=zoom_scale,
-            cmap_delta=cmap_delta,
-        )
 
 
 def _format_coord(x: float, y: float, image: np.ndarray) -> str:
@@ -152,85 +91,238 @@ def _create_colorbar(
     return cax
 
 
-def _image_view(
-    image: np.ndarray,
-    *,
-    interpolation: str = "nearest",
-    origin: str = "upper",
-    imshow_kwargs: Optional[dict] = None,
-    make_divider: bool = False,
-    show_cbar: Optional[bool] = False,
-    cmap: Optional[Union[Colormap, str]] = None,
-    title: Optional[str] = None,
-    figsize: Optional[Tuple[int, int]] = None,
-    fignum: Optional[int] = None,
-    ax: Optional[Axes] = None,
-) -> Tuple[
-    Figure,
-    Axes,
-    bool,
-    mpl.image.AxesImage,
-    Optional[AxesDivider],
-    Optional[Axes],
-    Optional[str],
-]:
-    """Set up a basic image display.
+def _check_image_shape(image: np.ndarray):
+    """Check that an array has a shape suitable for image display.
 
-    Set up an image display with basic features.
+    Args:
+        image: Array to check.
+
+    Raises:
+        ValueError: If the array is not of the required shape.
     """
-
     if image.ndim not in (2, 3) or (image.ndim == 3 and image.shape[-1] not in (3, 4)):
         raise ValueError(
             f"Argument image shape {image.shape} not appropriate for image display."
         )
 
-    fig, ax, show = figure_and_axes(ax, figsize=figsize, fignum=fignum)
 
-    try:
-        ax.set_adjustable("box")
-    except ValueError:
-        ax.set_adjustable("imagelim")  # type: ignore[arg-type]
+def _cmap_limit_kwargs(
+    data: np.ndarray, vmin_quantile: float = 0.0, norm: Optional[Normalize] = None
+) -> Dict[str, Any]:
+    """Get colormap limit keyword arguments for an image display.
 
-    if cmap is None and image.ndim == 2:
-        cmap = mpl.cm.Greys_r  # type: ignore[attr-defined]  # pylint: disable=E1101
+    Args:
+        data: Array from which colormap limits are determined.
+        vmin_quantile: Quantile determining the colormap limits. If zero,
+            the limits are the minimum and maximum values of
+            :code:`data`.
+        norm: If not ``None``, it is used to define the colormap range
+            instead of the limits determined by :code:`vmin_quantile`.
 
-    if imshow_kwargs is None:
-        imshow_kwargs = {}
-    axim = ax.imshow(
-        image, cmap=cmap, interpolation=interpolation, origin=origin, **imshow_kwargs  # type: ignore[arg-type]
-    )
-
-    if origin == "upper":
-        ax.tick_params(axis="x", top=True, bottom=False)
+    Returns:
+        A dict of keyword arguments for
+        :meth:`~matplotlib.axes.Axes.imshow`.
+    """
+    if norm is not None:
+        return {"norm": norm}
+    if vmin_quantile == 0.0:
+        vmin, vmax = data.min(), data.max()
     else:
-        ax.tick_params(axis="x", top=False, bottom=True)
-    ax.set_yticklabels([])
-    ax.set_xticklabels([])
+        vmin, vmax = np.quantile(data, [vmin_quantile, 1.0 - vmin_quantile])  # type: ignore
+    return {"vmin": vmin, "vmax": vmax}
 
-    if title is not None:
-        ax.set_title(title)
 
-    def _fmt_crd(x, y):
-        return _format_coord(x, y, axim.get_array().data)
+class ImageMixin:
+    """Mixin class providing display of an image.
 
-    ax.format_coord = _fmt_crd  # type: ignore[method-assign]
-    _patch_coord_statusbar(fig)
+    Mixin class providing display of an image, with pixel values
+    displayed when the pointer is over valid image data, and an optional
+    colorbar. It requires :class:`.ColorbarMixin`, the initializer of
+    which it calls with the image and colorbar artists it creates.
+    """
 
-    if HAVE_MPLCRS:
-        mplcrs.cursor(axim)
+    def init_image(
+        self,
+        image: np.ndarray,
+        interpolation: str = "nearest",
+        origin: str = "upper",
+        imshow_kwargs: Optional[dict] = None,
+        make_divider: bool = False,
+        show_cbar: Optional[bool] = False,
+        cmap: Optional[Union[Colormap, str]] = None,
+        title: Optional[str] = None,
+        cmap_data_limits: Optional[Tuple[float, float]] = None,
+    ):
+        """Initialize image display support.
 
-    divider = make_axes_locatable(ax) if make_divider else None
-    if show_cbar or show_cbar is None:
-        if divider is None:
-            divider = make_axes_locatable(ax)
-        cbar_orient = "vertical" if image.shape[0] >= image.shape[1] else "horizontal"
-        cax = _create_colorbar(
-            ax, axim, divider, orient=cbar_orient, visible=show_cbar is not None
+        Display the image and create the colorbar, if required.
+
+        Args:
+            image: Image to display, of a shape suitable for image
+                display.
+            interpolation: Specify type of interpolation used to display
+                image.
+            origin: Specify the origin of the image support, either
+                "upper" or "lower".
+            imshow_kwargs: Additional keyword arguments for
+                :meth:`~matplotlib.axes.Axes.imshow`, such as those
+                specifying the colormap limits.
+            make_divider: If ``True``, create an axes divider even when
+                no colorbar is required, for use in attaching other
+                auxiliary axes to the image.
+            show_cbar: Flag indicating whether to display a colorbar. If
+                set to ``None``, create an invisible colorbar.
+            cmap: Color map for the image.
+            title: Axes title.
+            cmap_data_limits: Range of the data bounding the adjustment
+                of the colormap limits. If ``None``, the range of
+                :code:`image` is used, which is not appropriate for a
+                plot type displaying one of a set of images, such as the
+                slices of a volume.
+        """
+        ax: Axes = self.axes  # type: ignore[attr-defined]
+
+        try:
+            ax.set_adjustable("box")
+        except ValueError:
+            ax.set_adjustable("imagelim")  # type: ignore[arg-type]
+
+        if cmap is None and image.ndim == 2:
+            cmap = mpl.cm.Greys_r  # type: ignore[attr-defined]  # pylint: disable=E1101
+
+        if imshow_kwargs is None:
+            imshow_kwargs = {}
+        axim = ax.imshow(
+            image,
+            cmap=cmap,  # type: ignore[arg-type]
+            interpolation=interpolation,
+            origin=origin,  # type: ignore[arg-type]
+            **imshow_kwargs,
         )
-    else:
-        cbar_orient, cax = None, None
 
-    return fig, ax, show, axim, divider, cax, cbar_orient
+        if origin == "upper":
+            ax.tick_params(axis="x", top=True, bottom=False)
+        else:
+            ax.tick_params(axis="x", top=False, bottom=True)
+        ax.set_yticklabels([])
+        ax.set_xticklabels([])
+
+        if title is not None:
+            ax.set_title(title)
+
+        def _fmt_crd(x, y):
+            return _format_coord(x, y, axim.get_array().data)
+
+        ax.format_coord = _fmt_crd  # type: ignore[method-assign]
+        _patch_coord_statusbar(self.figure)  # type: ignore[attr-defined]
+
+        if HAVE_MPLCRS:
+            mplcrs.cursor(axim)
+
+        divider = make_axes_locatable(ax) if make_divider else None
+        cbar_orient: Optional[str] = None
+        cbar_visible, cax = False, None
+        if show_cbar or show_cbar is None:
+            if divider is None:
+                divider = make_axes_locatable(ax)
+            cbar_orient = (
+                "vertical" if image.shape[0] >= image.shape[1] else "horizontal"
+            )
+            cbar_visible = show_cbar is not None
+            cax = _create_colorbar(
+                ax, axim, divider, orient=cbar_orient, visible=cbar_visible
+            )
+
+        if cmap_data_limits is None:
+            cmap_data_limits = data_limits(image)
+
+        self.init_colorbar(  # type: ignore[attr-defined]
+            axim,
+            divider=divider,
+            cbar_axes=cax,
+            cbar_orient=cbar_orient,
+            cbar_visible=cbar_visible,
+            cmap_data_limits=cmap_data_limits,
+        )
+
+
+class ImageView(ImageMixin, ColorbarMixin, ZoomMixin, Plot):
+    """A display of an image.
+
+    A display of an image, supporting the interactive features provided
+    by :class:`.FigureEventManager`, :class:`.ColorbarMixin`, and
+    :class:`.ZoomMixin`. It is usually constructed via the
+    :func:`imview` function, which additionally provides convenient
+    specification of the colormap limits.
+
+    Attributes:
+        figure: Plot figure.
+        axes: Plot axes.
+        axesimage: The :class:`~matplotlib.image.AxesImage` of the
+           displayed image.
+        divider: The :class:`~mpl_toolkits.axes_grid1.axes_divider.AxesDivider`
+           used to create axes for the colorbar, or ``None`` if there is
+           none.
+        cbar_axes: The axes of the colorbar, or ``None`` if there is no
+           colorbar.
+    """
+
+    def __init__(
+        self,
+        image: np.ndarray,
+        *,
+        interpolation: str = "nearest",
+        origin: str = "upper",
+        imshow_kwargs: Optional[dict] = None,
+        make_divider: bool = False,
+        show_cbar: Optional[bool] = False,
+        cmap: Optional[Union[Colormap, str]] = None,
+        title: Optional[str] = None,
+        figsize: Optional[Tuple[int, int]] = None,
+        fignum: Optional[int] = None,
+        ax: Optional[Axes] = None,
+        show: bool = True,
+    ):
+        """
+        Args:
+            image: Image to display. See :func:`imview`.
+            interpolation: See :func:`imview`.
+            origin: See :func:`imview`.
+            imshow_kwargs: Additional keyword arguments for
+                :meth:`~matplotlib.axes.Axes.imshow`, such as those
+                specifying the colormap limits :code:`vmin` and
+                :code:`vmax`.
+            make_divider: If ``True``, create an axes divider even when
+                no colorbar is required.
+            show_cbar: See :func:`imview`.
+            cmap: See :func:`imview`.
+            title: See :func:`imview`.
+            figsize: See :func:`imview`.
+            fignum: See :func:`imview`.
+            ax: See :func:`imview`.
+            show: If ``True``, show a newly created figure once the plot
+                has been drawn. It should be set to ``False`` by a
+                derived class that draws additional plot components.
+
+        Raises:
+            ValueError: If the input array is not of the required shape.
+        """
+        _check_image_shape(image)
+        fig, axs, new_fig = figure_and_axes(ax, figsize=figsize, fignum=fignum)
+        super().__init__(figure=fig, axes=axs, new_figure=new_fig)
+        self.init_image(
+            image,
+            interpolation=interpolation,
+            origin=origin,
+            imshow_kwargs=imshow_kwargs,
+            make_divider=make_divider,
+            show_cbar=show_cbar,
+            cmap=cmap,
+            title=title,
+        )
+        self.init_zoom()
+        if show:
+            self.show_new_figure()
 
 
 def imview(
@@ -256,9 +348,9 @@ def imview(
       figure and axes are created, and
       :meth:`~matplotlib.figure.Figure.show` is called after drawing the
       plot.
-    - Interactive features provided by :class:`FigureEventManager` and
-      :class:`ImageViewEventManager` are supported in addition to the
-      standard `matplotlib <https://matplotlib.org/>`__
+    - Interactive features provided by :class:`FigureEventManager`,
+      :class:`ColorbarMixin`, and :class:`ZoomMixin` are supported in
+      addition to the standard `matplotlib <https://matplotlib.org/>`__
       `interactive features <https://matplotlib.org/stable/users/explain/figure/interactive.html#interactive-navigation>`__.
 
     Args:
@@ -298,26 +390,16 @@ def imview(
         ax: Plot in specified axes instead of creating one.
 
     Returns:
-        Image view state object.
+        Image view object.
 
     Raises:
         ValueError: If the input array is not of the required shape.
     """
-
-    if norm is None:
-        if vmin_quantile == 0.0:
-            vmin, vmax = image.min(), image.max()
-        else:
-            vmin, vmax = np.quantile(image, [vmin_quantile, 1.0 - vmin_quantile])  # type: ignore
-        kwargs = {"vmin": vmin, "vmax": vmax}
-    else:
-        kwargs = {"norm": norm}
-    fig, ax, show, axim, divider, cax, cbar_orient = _image_view(
+    return ImageView(
         image,
         interpolation=interpolation,
         origin=origin,
-        imshow_kwargs=kwargs,
-        make_divider=False,
+        imshow_kwargs=_cmap_limit_kwargs(image, vmin_quantile=vmin_quantile, norm=norm),
         show_cbar=show_cbar,
         cmap=cmap,
         title=title,
@@ -325,19 +407,3 @@ def imview(
         fignum=fignum,
         ax=ax,
     )
-
-    if show:
-        fig.show()
-
-    imvw = ImageView(
-        figure=fig, axes=ax, axesimage=axim, divider=divider, cbar_axes=cax
-    )
-
-    if not hasattr(fig, "_event_manager"):
-        fem = FigureEventManager(fig)  # constructed object attaches itself to fig
-    else:
-        fem = figure_event_manager(fig)
-    if not hasattr(ax, "_event_manager"):
-        ImageViewEventManager(ax, fem, imvw)  # constructed object attaches itself to ax
-
-    return imvw
