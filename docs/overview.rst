@@ -113,6 +113,10 @@ It also provides interactive adjustment/navigation support in addition to the st
 +------------------------+--------------------------------+----------------------------+
 | Action/Key             | Effect                         |  Valid                     |
 +========================+================================+============================+
+| **?**                  | Display or hide the help       | All plot types             |
+|                        | for the interactive features   |                            |
+|                        | of the figure.                 |                            |
++------------------------+--------------------------------+----------------------------+
 | **q**                  | Close figure. (This is also a  | All plot types             |
 |			 | standard keyboard shortcut.)   |                            |
 +------------------------+--------------------------------+----------------------------+
@@ -140,6 +144,19 @@ It also provides interactive adjustment/navigation support in addition to the st
 
 
 Note that none of the keyboard shortcuts (including detection of the shift key while the mouse wheel is scrolled) are functional within Jupyter notebooks with the `ipympl <https://matplotlib.org/ipympl/>`__ matplotlib backend.
+
+
+Help display
+^^^^^^^^^^^^
+
+The interactive features of a figure are described in a help display, which is opened and closed by the :code:`?` key within the figure. The help is assembled from the classes of which the plots of the figure are composed, each of which describes the features that it provides, so that the help for a figure describes the features that are actually available in it: that for a figure containing an image view and a line plot describes the colormap range adjustment of the former and the zoom of both, annotating the former with the plots to which it applies, while that for a figure containing only a surface plot, which supports neither, describes only the features of the figure itself. Since keyboard shortcuts are not functional in a Jupyter notebook, as noted above, the help may also be displayed by a call to :func:`~komplot.show_help`
+
+.. code-block:: python
+
+    iv = kplt.imview(img, show_cbar=True)
+    kplt.show_help(iv.figure)
+
+The display itself is provided by the `mpl-help <https://github.com/bwohlberg/mpl-help>`__ package.
 
 
 Plot Objects

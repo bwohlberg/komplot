@@ -28,7 +28,13 @@ from ._imview import imview, ImageView, ImageMixin
 from ._volview import volview, VolumeView
 from ._plot import plot, LinePlot
 from ._surface import surface, SurfacePlot
-from ._event import figure_event_manager, FigureEventManager, plots, plot_for_axes
+from ._event import (
+    figure_event_manager,
+    FigureEventManager,
+    plots,
+    plot_for_axes,
+    show_help,
+)
 from ._state import Plot, ZoomMixin, ColorbarMixin, SliceMixin
 from ._share import (
     ShareGroup,
@@ -87,6 +93,7 @@ __all__ = [
     "ShareGroup",
     "plots",
     "plot_for_axes",
+    "show_help",
     "figure_event_manager",
     "FigureEventManager",
     "set_ipython_plot_backend",

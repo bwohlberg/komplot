@@ -15,6 +15,7 @@ import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.colors import Colormap, Normalize
 from matplotlib.figure import Figure
+from mpl_help import HelpSection, KeyBinding
 from mpl_toolkits.axes_grid1 import make_axes_locatable  # type: ignore[import-untyped]
 from mpl_toolkits.axes_grid1.axes_divider import (
     AxesDivider,  # type: ignore[import-untyped]
@@ -243,6 +244,25 @@ class ImageMixin:
             cbar_orient=cbar_orient,
             cbar_visible=cbar_visible,
             cmap_data_limits=cmap_data_limits,
+        )
+
+    def help_section(self) -> Optional[HelpSection]:
+        """Get the help for the image cursor display.
+
+        Returns:
+            Help section describing the display of the image coordinates
+            and pixel value at the cursor location.
+        """
+        return HelpSection(
+            title="Image",
+            accent="cyan",
+            bindings=[
+                KeyBinding(
+                    "Mouse motion",
+                    "Display the image coordinates and pixel value at the cursor "
+                    "location in the toolbar",
+                )
+            ],
         )
 
 
