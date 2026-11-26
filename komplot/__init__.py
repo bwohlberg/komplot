@@ -19,7 +19,7 @@ from importlib.metadata import PackageNotFoundError, version
 from typing import Any
 
 from matplotlib import cm, colors, gridspec, rcParams, ticker
-from matplotlib.pyplot import figure, gca, gcf, savefig, subplot, subplots
+from matplotlib.pyplot import figure, gca, gcf, savefig, subplot
 
 # isort: off
 
@@ -28,6 +28,7 @@ from ._imview import imview, ImageView, ImageMixin
 from ._volview import volview, VolumeView
 from ._plot import plot, LinePlot
 from ._surface import surface, SurfacePlot
+from ._layout import subplots
 from ._event import figure_event_manager, FigureEventManager, plots, plot_for_axes
 from ._state import Plot, ZoomMixin, ColorbarMixin, SliceMixin
 from ._share import (
@@ -69,6 +70,7 @@ __all__ = [
     "plot",
     "surface",
     "volview",
+    "subplots",
     "close",
     "ContourPlot",
     "ImageView",
