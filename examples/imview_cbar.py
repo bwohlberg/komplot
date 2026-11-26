@@ -59,5 +59,53 @@ kplt.share_cmap(ivs)
 fig.show()
 
 
+"""
+Space is reserved in the same way for a grid of plots. A colorbar shared by every plot of a 2x2 grid of images, placed at the right of the grid, spans all of them, from the top of the images in the first row to the bottom of those in the second.
+"""
+
+chan = (imc[..., 0], imc[..., 1], imc[..., 2], imc.mean(axis=-1))
+titles = ("Channel 0", "Channel 1", "Channel 2", "Channel Mean")
+
+fig, ax = kplt.subplots(
+    nrows=2,
+    ncols=2,
+    cbar="shared",
+    sharex=True,
+    sharey=True,
+    figsize=(9, 9),
+    gridspec_kw={"wspace": 0.1, "hspace": 0.1},
+)
+fig.suptitle("Shared Colorbar at the Right", fontsize=14)
+ivs = [
+    kplt.imview(data, norm=norm, title=title, ax=axs)
+    for data, title, axs in zip(chan, titles, ax.ravel())
+]
+kplt.share_cmap(ivs)
+fig.show()
+
+
+"""
+The side on which space is reserved is specified by `cbar_location`. A colorbar below the grid spans the full width of the images instead, from the left of those in the first column to the right of those in the second.
+"""
+
+fig, ax = kplt.subplots(
+    nrows=2,
+    ncols=2,
+    cbar="shared",
+    cbar_location="bottom",
+    sharex=True,
+    sharey=True,
+    figsize=(9, 9),
+    gridspec_kw={"wspace": 0.1, "hspace": 0.1},
+)
+fig.suptitle("Shared Colorbar at the Bottom", fontsize=14)
+ivs = [
+    kplt.imview(data, norm=norm, title=title, ax=axs)
+    for data, title, axs in zip(chan, titles, ax.ravel())
+]
+kplt.share_cmap(ivs)
+fig.show()
+
+
 # Wait for enter on keyboard
 input()

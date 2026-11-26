@@ -391,6 +391,24 @@ class TestReservedExtent:
         assert cbox.x0 == pytest.approx(extent.x0)
         assert cbox.x1 == pytest.approx(extent.x1)
 
+    def test_shared_below_grid(self, image, wide_image):
+        """A colorbar below a grid should span the full width of its plots."""
+        fig, ax = kplt.subplots(
+            nrows=2, ncols=2, cbar="shared", cbar_location="bottom", figsize=(8, 8)
+        )
+        norm = Normalize(vmin=0.0, vmax=48.0)
+        data = (image, wide_image, wide_image, image)
+        plots = [
+            kplt.imview(datum, norm=norm, ax=axs)
+            for datum, axs in zip(data, np.ravel(ax))
+        ]
+        fig.canvas.draw()
+        extent = self.extent(plots)
+        cbox = ax[0, 0].cax.get_window_extent()
+        assert cbox.x0 == pytest.approx(extent.x0)
+        assert cbox.x1 == pytest.approx(extent.x1)
+        assert cbox.y1 < extent.y0
+
     def test_per_plot_matches_its_plot(self, wide_image):
         """A colorbar should match the extent of the plot that it represents."""
         fig, ax = kplt.subplots(ncols=2, cbar=True, cbar_pad=0.05, figsize=(12, 4))
@@ -465,18 +483,38 @@ class TestReservedPad:
         cbox = plot.cbar_axes.get_window_extent()
         assert cbox.x0 - box.x1 == pytest.approx(DEFAULT_PAD * cell(fig, ax[0])[0])
 
-    @pytest.mark.parametrize("mode", ["shared", "row"])
-    def test_shared_pad(self, image, mode):
+    @pytest.mark.parametrize(
+        "mode,location",
+        [
+            ("shared", "right"),
+            ("row", "right"),
+            ("shared", "bottom"),
+            ("col", "bottom"),
+        ],
+    )
+    def test_shared_pad(self, image, mode, location):
         """A shared colorbar should be at a greater distance than a single one."""
         assert SHARED_PAD > DEFAULT_PAD
-        fig, ax = kplt.subplots(ncols=2, cbar=mode, figsize=(8, 4))
-        plots = [kplt.imview(image, ax=axs) for axs in ax]
-        fig.canvas.draw()
-        boxes = [plot.axes.get_window_extent() for plot in plots]
-        cbox = ax[0].cax.get_window_extent()
-        assert cbox.x0 - max(box.x1 for box in boxes) == pytest.approx(
-            SHARED_PAD * cell(fig, ax[0])[0]
+        fig, ax = kplt.subplots(
+            nrows=2, ncols=2, cbar=mode, cbar_location=location, figsize=(8, 8)
         )
+        plots = [kplt.imview(image, ax=axs) for axs in np.ravel(ax)]
+        fig.canvas.draw()
+        cax = ax[0, 0].cax
+        boxes = [
+            plot.axes.get_window_extent()
+            for plot in plots
+            if reserved_axes(plot.axes) is cax
+        ]
+        cbox = cax.get_window_extent()
+        if location == "right":
+            assert cbox.x0 - max(box.x1 for box in boxes) == pytest.approx(
+                SHARED_PAD * cell(fig, ax[0, 0])[0]
+            )
+        else:
+            assert min(box.y0 for box in boxes) - cbox.y1 == pytest.approx(
+                SHARED_PAD * cell(fig, ax[0, 0])[1]
+            )
 
     def test_explicit_pad(self, image):
         """A specified pad should be used whether or not the axes is shared."""
