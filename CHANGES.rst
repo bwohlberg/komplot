@@ -56,6 +56,12 @@ Version 0.0.5   (xxxx-xx-xx)
   raised an exception instead of being ignored.
 • Increase minimum supported Python version to 3.11.
 
+..
+   The entries above are the record of the deprecation of the API replaced in
+   this version, and remain when that API is removed, which requires an entry
+   of its own. The full set of changes required to remove it is the list in the
+   docstring of komplot/_deprecated.py.
+
 
 Version 0.0.4   (2026-10-29)
 ----------------------------

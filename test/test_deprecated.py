@@ -7,8 +7,9 @@
 
 """Tests for module komplot._deprecated.
 
-Delete this file together with the compatibility layer that it tests at
-the end of the deprecation cycle.
+Delete this file when the API deprecated in version 0.0.5 is removed,
+which is step 3 of the list in the docstring of the module that it
+tests, that list being the full set of changes required.
 """
 
 import warnings
@@ -195,11 +196,21 @@ class TestRemovability:
         assert referring == []
 
     def test_layer_is_used_only_at_the_end_of_the_package_init(self):
-        """Use of the layer should be confined to a block that may be deleted."""
+        """Use of the layer should be confined to a block that may be deleted.
+
+        Comments are not use, the deletable block being referred to by a
+        comment at the head of the file, where an import required only by
+        that block is to be deleted with it.
+        """
         source = Path(kplt.__file__).read_text()
         marker = "# Compatibility support for the API deprecated"
         assert source.count(marker) == 1
-        assert "_deprecated" not in source[: source.index(marker)]
+        code = [
+            line
+            for line in source[: source.index(marker)].split("\n")
+            if not line.lstrip().startswith("#")
+        ]
+        assert [line for line in code if "_deprecated" in line] == []
 
     def test_package_does_not_use_the_layer(self, image, volume):
         """Current use of the package should emit no deprecation warning."""

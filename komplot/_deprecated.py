@@ -10,14 +10,28 @@
 Every public name removed by the restructuring of the plot class
 hierarchy and of the sharing API in version 0.0.5 remains usable, each
 use emitting a :class:`DeprecationWarning` and delegating to the name
-that replaces it. Nothing in the package refers to this module other
-than the final block of :mod:`komplot`, so the layer may be removed, at
-the end of the deprecation cycle, by deleting
+that replaces it.
 
-* this module,
-* the block at the end of ``komplot/__init__.py`` that imports it,
-* ``test/test_deprecated.py``,
-* the deprecation notes in ``CHANGES.rst`` and ``docs/overview.rst``.
+Nothing in the package refers to this module other than the final block
+of :mod:`komplot`, so completing the deprecation in the version
+specified by :data:`REMOVED_IN` requires only
+
+1. deleting this module,
+2. deleting the final block of ``komplot/__init__.py``, which installs
+   it, together with the :mod:`typing` import at the head of that file,
+   which no other part of it requires,
+3. deleting ``test/test_deprecated.py``,
+4. deleting the "Deprecated API" section of ``docs/overview.rst``,
+5. adding an entry to ``CHANGES.rst`` recording the removal, the
+   entries for version 0.0.5 remaining as the record of the
+   deprecation.
+
+Each of those files carries a comment referring to this list at the
+point at which it is to be edited. Nothing else is affected: the
+deprecated members are attached to the classes that retain them by
+:func:`install`, rather than being defined in the modules of those
+classes, and the tests assert both that isolation and the absence of any
+use of the deprecated API within the package itself.
 
 Two parts of the removed API are not supported, since they are neither
 documented nor used in the examples of the version in which they were

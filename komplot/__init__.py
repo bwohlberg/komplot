@@ -13,7 +13,10 @@ plotting functions.
 
 import sys
 from importlib.metadata import PackageNotFoundError, version
-from typing import Any  # required by the deprecated API support at the end of this file
+
+# Required only by the deprecated API support at the end of this file; delete
+# with it (step 2 of the list in the docstring of komplot/_deprecated.py).
+from typing import Any
 
 from matplotlib import cm, colors, gridspec, rcParams, ticker
 from matplotlib.pyplot import figure, gca, gcf, savefig, subplot, subplots
@@ -124,9 +127,11 @@ for func in (plot, contour, surface, imview, volview):
 del func
 
 
-# Compatibility support for the API deprecated in version 0.0.5. To remove it at
-# the end of the deprecation cycle, delete komplot/_deprecated.py,
-# test/test_deprecated.py, and the remainder of this file.
+# Compatibility support for the API deprecated in version 0.0.5, to be removed in
+# the version specified by komplot._deprecated.REMOVED_IN. Completing the
+# deprecation requires deleting the remainder of this file and the typing import
+# at the head of it, together with the module imported here and its tests: the
+# full list is the docstring of komplot/_deprecated.py.
 from . import _deprecated
 
 _deprecated.install()
